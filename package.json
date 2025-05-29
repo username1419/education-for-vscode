@@ -9,14 +9,19 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": ["onStartupFinished"],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "education-for-vscode.startEducation",
-        "title": "Begin Study"
+        "title": "Begin Study Session"
+      },
+      {
+        "command": "education-for-vscode.endEducation",
+        "title": "End Study Session"
       }
+
     ]
   },
   "scripts": {

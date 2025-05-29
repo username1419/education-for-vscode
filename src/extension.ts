@@ -2,9 +2,15 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 
 const extensionName = "education-for-vscode";
+const fileExtension : Map<string, string> = new Map(
+	[
+		["python", ".py"]
+	]
+);
 let langList: string[] = [];
 let langPath: string[] = [];
 let vscodeContext: vscode.ExtensionContext;
+let registeredCommands: vscode.Disposable[] = [];
 
 export function activate(context: vscode.ExtensionContext) {
 	
@@ -16,17 +22,16 @@ export function activate(context: vscode.ExtensionContext) {
 	vscodeContext = context;
 
 	// Saves the path of lessons to array for later loading
-	fs.promises.readdir(context.extensionPath + "/resources/lessons", null).then(files => {
-		langList = files;
-		for (let i = 0; i < files.length; i++) {
-			langPath.push(context.extensionPath + "/resources/lessons/" + files[i]);
-			langList[i] = langList[i].split(".")[0];
-			console.log("Loaded " + langList[i] + " lesson.");
-		}
+	fs.promises.readdir(context.extensionPath + "/resources/contents", null).then(folders => {
+		langList = folders;
+		langList.forEach(folder => {
+			langPath.push(context.extensionPath + "/resources/contents/" + folder);
+		});
 	});
 
 	// Register the command education-vscode.startEducation
-	if (!context.globalState.get("isOpened")) {
+	if (!context.globalState.get("isOpened") || true) {
+		
 		const startEducationRegister = vscode.commands.registerCommand(extensionName + '.startEducation', () => {
 			if (vscode.workspace.name !== undefined) {
 				// Warn users that continuing will close all files without saving, if they have files open in workspace
@@ -46,6 +51,8 @@ export function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(
 			startEducationRegister
 		);
+		registeredCommands.push(startEducationRegister);
+		console.log("Commands loaded");
 	}
 }
 
@@ -69,7 +76,7 @@ function startEducation() {
 					});
 				} else {
 					// If the selected directory is not empty, requests the user a deletion of the folder contents
-					vscode.window.showWarningMessage("The directory is not empty. Delete contents?(Actions cannot be reversed)", {}, "Yes", "No").then(ans => {
+					vscode.window.showWarningMessage("The directory is not empty. Delete contents?(Actions cannot be reversed)", {}, "No", "Yes").then(ans => {
 						if (ans === "Yes") {
 							fs.rmSync(writeDir[0].fsPath, {recursive: true, maxRetries: 0, force: true});
 							if (fs.existsSync(writeDir[0].fsPath)) {
@@ -94,28 +101,29 @@ function startEducation() {
 }
 
 function generateCodeFiles(language: string, writeDir: vscode.Uri) {
-	// Open the selected lesson from the path and save its contents to memory
-	let readPath = langPath[langList.findIndex(x => x === language)];
-	let plainText = fs.readFileSync(readPath, 'utf-8');
-	var contents = JSON.parse(plainText);
+	// Open the selected lesson from the path
+	let lessonOriginFolder = langPath[langList.findIndex(x => x === language)];
 
-	// Create the base code file for the user's project in the selected directory
-	let baseFileContents : string = contents[0].code.join('\n');
-	fs.writeFileSync(writeDir.path + "/base." + contents[0].extension, baseFileContents);
-	
-	// Create the code file for the user to edit
-	let nLessonContents : string = contents[1].code.join('\n');
-	fs.writeFileSync(writeDir.path + "/lesson_0." + contents[0].extension, nLessonContents);
+	// Copy the file to the specified path
+	let lessonDir = writeDir.path + "/base" + fileExtension.get(language);
+	fs.copyFileSync(
+		lessonOriginFolder + "/base/base" + fileExtension.get(language), 
+		writeDir.fsPath + "/base" + fileExtension.get(language)
+	);
 
 	// Update workspace files
 	// workbench.action.quickOpen
-	vscode.workspace.openTextDocument(writeDir.path + "/lesson_0." + contents[0].extension).then(doc => {
+	vscode.workspace.openTextDocument(lessonDir).then(doc => {
 		vscode.window.showTextDocument(doc).then(editor => {
-			console.log("damn");
+			vscode.workspace.updateWorkspaceFolders(0, vscode.workspace.workspaceFolders?.length, {uri : writeDir});
 		});
 	});
-
-	vscode.workspace.updateWorkspaceFolders(0, vscode.workspace.workspaceFolders?.length, {uri : writeDir});
 }
 
-export function deactivate() {}
+export function deactivate() {
+	registeredCommands.forEach((v, i, a) => {
+		delete vscodeContext.subscriptions[vscodeContext.subscriptions.findIndex(
+			command => command === v
+		)];
+	});
+}
