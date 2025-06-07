@@ -15,13 +15,16 @@
     "commands": [
       {
         "command": "education-for-vscode.startEducation",
-        "title": "Begin Study Session"
+        "title": "Education for VSCode: Begin Study Session"
       },
       {
         "command": "education-for-vscode.endEducation",
-        "title": "End Study Session"
+        "title": "Education ofr VSCode: End Study Session"
+      },
+      {
+        "command": "education-for-vscode.submitCode",
+        "title": "Education for VSCode: Submit Code"
       }
-
     ]
   },
   "scripts": {
