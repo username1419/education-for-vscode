@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>AI Chatbot</title>
+        <link type="stylesheet" href="chat.css">
+    </head>
+    <body>
+        <div id="chat"></div>
+        <div id="input-area">
+            <form id="input-form">
+                <input type="text" id="input" placeholder="Type a message..." />
+                <button type="submit" id="send">Send</button>
+            </form>
+        </div>
+
+        <script>
+            const vscode = acquireVsCodeApi();
+
+            const chat = document.getElementById('chat');
+            const input = document.getElementById('input');
+            const form = document.getElementById('input-form');
+
+            let loadingIndicator = null;
+
+            function addMessage(text, className) {
+                const msg = document.createElement('div');
+                msg.className = `message ${className}`;
+                msg.textContent = text;
+                chat.appendChild(msg);
+                chat.scrollTop = chat.scrollHeight;
+                return msg;
+            }
+
+            function showLoading() {
+                loadingIndicator = addMessage('AI is typing...', 'chat');
+            }
+
+            function removeLoading() {
+                if (loadingIndicator) {
+                    chat.removeChild(loadingIndicator);
+                    loadingIndicator = null;
+                }
+            }
+
+            function sendMessage() {
+                const text = input.value.trim();
+                if (!text) {
+                    return;
+                }
+                addMessage(text, 'user');
+                showLoading();
+                vscode.postMessage({ command: 'reqChatMessage', content: text });
+                input.value = '';
+            }
+
+            form.addEventListener('submit', event => {
+                event.preventDefault();
+                sendMessage();
+            });
+
+            let streamingBotMessage = null;
+
+            window.addEventListener('message', event => {
+                const message = event.data;
+
+                switch (message.command) {
+                    case 'chatMessageBegin': {
+                        streamingBotMessage = addMessage('', 'chat');
+                        break;
+                    }
+                    case 'chatMessageAppend': {
+                        streamingBotMessage.textContent += message.value;
+                        chat.scrollTop = chat.scrollHeight;
+                        break;
+                    }
+                    case 'chatMessageDone': {
+                        streamingBotMessage = null;
+                        break;
+                    }
+                }
+            });
+        </script>
+    </body>
+</html>

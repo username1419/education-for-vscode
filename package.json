@@ -9,7 +9,9 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": ["onStartupFinished"],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -25,7 +27,34 @@
         "command": "education-for-vscode.submitCode",
         "title": "Education for VSCode: Submit Code"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "model-installer-sidebar",
+          "title": "Model Installer",
+          "icon": "/resources/icons/download-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "model-installer-sidebar": [
+        {
+          "icon": "/resources/icons/download-icon.svg",
+          "id": "model-installer-view",
+          "name": "Model Installer",
+          "type": "webview"
+        }
+      ],
+      "chat-sidebar": [
+        {
+          "icon": "/resources/icons/ollama-icon.svg",
+          "id": "chat-view",
+          "name": "Ollama Chat",
+          "type": "webview"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
@@ -36,14 +65,23 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.100.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
+    "@types/vscode": "^1.100.0",
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@typescript-eslint/parser": "^8.28.0",
-    "eslint": "^9.23.0",
-    "typescript": "^5.8.2",
     "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1"
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.23.0",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "cheerio": "^1.1.0",
+    "n": "^10.2.0",
+    "node": "^20.19.3",
+    "ollama": "^0.5.16",
+    "openai": "^5.7.0",
+    "stable": "^0.1.8",
+    "undici": "^7.10.0"
   }
 }

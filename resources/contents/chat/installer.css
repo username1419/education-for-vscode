@@ -1,0 +1,9 @@
+select {
+    background-color: var(--vscode-selection-background);
+    border: 1px solid var(--vscode-menu-selectionBorder);
+    border-radius: 6px;
+}
+
+.warning {
+    color: red;
+}

@@ -1,0 +1,88 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="installer.css">
+    </head>
+    <body>
+        <select id="model-selection" onchange="onModelSelect()" >
+
+        </select>
+        <select id="params-selection">
+
+        </select>
+        <p class="warning"></p>
+        <button onclick="onInstall()">Install</button>
+        <script>
+            const vscode = acquireVsCodeApi();
+
+            window.addEventListener('message', event => {
+                const message = event.data;
+                const defaultOption = document.createElement('option');
+                defaultOption.setAttribute('selected', true);
+                defaultOption.setAttribute('hidden', true);
+                defaultOption.setAttribute('disabled', true);
+
+                console.log(message);
+                switch (message.command) {
+                    case 'createModelOptions':
+                        let modelSelection = document.getElementById('model-selection');
+                        modelSelection.childNodes.forEach((child) => {
+                            modelSelection.removeChild(child);
+                        });
+
+                        if (!Array.isArray(message.content)) { return; }
+
+                        defaultOption.text = 'Choose Model';
+                        modelSelection.appendChild(defaultOption);
+
+                        message.content.forEach((model) => {
+                            console.log(model);
+                            if (!typeof model === 'string') { return; }
+                            let option = document.createElement('option');
+                            option.text = model;
+                            modelSelection.appendChild(option);
+                        });
+                        break;
+                        
+                    case 'createParamsOptions':
+                        let paramsSelection = document.getElementById('params-selection');
+                        paramsSelection.childNodes.forEach((child) => {
+                            paramsSelection.removeChild(child);
+                        });
+
+                        if (!Array.isArray(message.content)) { return; }
+
+                        defaultOption.text = 'Choose Parameter Size';
+                        paramsSelection.appendChild(defaultOption);
+
+                        message.content.forEach((modelInfo) => {
+                            if (!typeof modelInfo.parameterSize === 'string' ) { return; }
+                            let option = document.createElement('option');
+                            option.text = modelInfo.parameterSize;
+                            paramsSelection.appendChild(option);
+                        });
+                        break;
+
+                    default:
+                        console.log(`command not recognized: ${message.command}`);
+                        break;
+                }
+            });
+
+            function onModelSelect() {
+                vscode.postMessage({
+                    command: 'setParamsReq',
+                    model: document.getElementById("model-selection").value
+                })
+            }
+
+            function onInstall() {
+                // TODO: check if anything is filled out
+                vscode.postMessage({
+                    command: "installModel",
+                    model: document.getElementById("model-selection").value,
+                    params: document.getElementById("params-selection").value
+                })
+            }
+        </script>
+    </body>
+</html>
