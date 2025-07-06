@@ -21,11 +21,19 @@
       },
       {
         "command": "education-for-vscode.endEducation",
-        "title": "Education ofr VSCode: End Study Session"
+        "title": "Education for VSCode: End Study Session"
       },
       {
         "command": "education-for-vscode.submitCode",
         "title": "Education for VSCode: Submit Code"
+      },
+      {
+        "command": "education-for-vscode.setupOllama",
+        "title": "Education for VSCode: Run Ollama Setup"
+      },
+      {
+        "command": "education-for-vscode.resetEducation",
+        "title": "Education for VSCode: Reset Lesson"
       }
     ],
     "viewsContainers": {
@@ -34,6 +42,11 @@
           "id": "model-installer-sidebar",
           "title": "Model Installer",
           "icon": "/resources/icons/download-icon.svg"
+        },
+        {
+          "id": "chat-sidebar",
+          "title": "Ollama Chat",
+          "icon": "/resources/icons/ollama-icon.svg"
         }
       ]
     },
@@ -82,6 +95,7 @@
     "ollama": "^0.5.16",
     "openai": "^5.7.0",
     "stable": "^0.1.8",
+    "systeminformation": "^5.27.7",
     "undici": "^7.10.0"
   }
 }

@@ -4,23 +4,139 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>AI Chatbot</title>
-        <link type="stylesheet" href="chat.css">
+        <style>
+            body {
+                margin: 0;
+                padding: 0;
+                font-family: var(--vscode-font-family);
+                background-color: var(--vscode-editor-background);
+                color: var(--vscode-editor-foreground);
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+            }
+
+            select {
+                background-color: var(--vscode-dropdown-background);
+                border: 1px solid var(--vscode-dropdown-border);
+                color: var(--vscode-dropdown-foreground);
+                border-radius: 2px;
+                height: 1.2;
+            }
+
+            select > * {
+                background-color: var(--vscode-dropdown-background);
+            }
+
+            select > *:hover {
+                background-color: var(--vscode-dropdown-background);
+                border-color: var(--vscode-dropdown-border);
+                color: var(--vscode-dropdown-foreground);
+            }
+
+            #chat {
+                flex: 1;
+                overflow-y: auto;
+                padding: 1rem;
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            .message {
+                max-width: 80%;
+                padding: 0.25rem 1rem;
+                border-radius: 12px;
+                line-height: 1.5;
+                white-space: pre-wrap;
+            }
+
+            .user {
+                align-self: flex-end;
+                background-color: var(--vscode-button-background);
+                color: var(--vscode-button-foreground);
+            }
+
+            .chat {
+                align-self: flex-start;
+                background-color: var(--vscode-editorHoverWidget-background);
+                color: var(--vscode-editorHoverWidget-foreground);
+            }
+            
+            #warning > p {
+                color: red;
+            }
+
+            #input-area {
+                display: flex;
+                border-top: 1px solid var(--vscode-editorWidget-border);
+            }
+
+            #input-form {
+                display: flex;
+                flex: 1;
+                background-color: var(--vscode-input-background);
+                border-radius: 12px;
+            }
+            
+            #input {
+                flex: 1;
+                padding: 0.5rem;
+                border: none;
+                border-radius: 12px 0px 0px 12px;
+                margin-right: 10px;
+                outline: none;
+                background-color: var(--vscode-input-background);
+                color: var(--vscode-input-foreground);
+                font-size: smaller;
+                resize: none;
+            }
+
+            #send {
+                background-color: var(--vscode-button-background);
+                color: var(--vscode-button-foreground);
+                border: none;
+                border-radius: 12px;
+                cursor: pointer;
+                height: fit-content;
+                align-content: center;
+                align-self: center;
+                margin-right: 12px;
+            }
+
+            #send:hover {
+                background-color: var(--vscode-button-hoverBackground);
+            }
+        </style>
     </head>
     <body>
         <div id="chat"></div>
+        <div id="warning"></div>
+        <div id="model-selection-div">
+            <select id="model-selection">
+                <option selected disabled>Select Model</option>
+            </select>
+            <select id="params-selection">
+                <option selected disabled>Size</option>
+            </select>
+        </div>
         <div id="input-area">
             <form id="input-form">
-                <input type="text" id="input" placeholder="Type a message..." />
-                <button type="submit" id="send">Send</button>
+                <textarea type="text" id="input" placeholder="Type a message..."></textarea>
+                <button type="submit" id="send">⮚</button>
             </form>
         </div>
 
         <script>
+            // who is the motherfucker that made this piece of shit language a frontend development standard
             const vscode = acquireVsCodeApi();
 
             const chat = document.getElementById('chat');
-            const input = document.getElementById('input');
+            const promptInputbox = document.getElementById('input');
             const form = document.getElementById('input-form');
+            const modelSelection = document.getElementById('model-selection');
+            const paramsSelection = document.getElementById('params-selection');
+            const warning = document.getElementById('warning');
 
             let loadingIndicator = null;
 
@@ -45,14 +161,29 @@
             }
 
             function sendMessage() {
-                const text = input.value.trim();
-                if (!text) {
+                const prompt = promptInputbox.value.trim();
+                const model = modelSelection.value;
+                const params = paramsSelection.value;
+                warning.childNodes.forEach(child => warning.removeChild(child));
+                if (!prompt || model === 'Select Model' || params === 'Size') {
+                    const child = document.createElement('p');
+                    child.textContent = 'Please check if model, parameter size, and prompt is filled out.'
+                    warning.appendChild(child);
                     return;
                 }
-                addMessage(text, 'user');
+                addMessage(prompt, 'user');
                 showLoading();
-                vscode.postMessage({ command: 'reqChatMessage', content: text });
-                input.value = '';
+                vscode.postMessage(
+                    {
+                        command: 'reqChatMessage', 
+                        content: {
+                            userPrompt: prompt, 
+                            modelName: model,
+                            parameterSize: params
+                        }
+                    }
+                );
+                promptInputbox.value = '';
             }
 
             form.addEventListener('submit', event => {
@@ -71,13 +202,33 @@
                         break;
                     }
                     case 'chatMessageAppend': {
-                        streamingBotMessage.textContent += message.value;
+                        streamingBotMessage.textContent += message.content;
                         chat.scrollTop = chat.scrollHeight;
                         break;
                     }
                     case 'chatMessageDone': {
                         streamingBotMessage = null;
                         break;
+                    }
+                    case 'createModelOptions': {
+                        const modelInfo = message.content;
+                        if (modelInfo instanceof Array) {
+                            const isValidObject = !!modelInfo.find(modelData => {
+                                return !(modelData.parameterSize instanceof String || modelData.modelName instanceof String);
+                            });
+                            if (isValidObject) {
+                                modelInfo.forEach(modelData => {
+                                    const modelOption = document.createElement('option');
+                                    const paramOption = document.createElement('option');
+
+                                    modelOption.text = modelData.modelName;
+                                    paramOption.text = modelData.parameterSize;
+
+                                    modelSelection.appendChild(modelOption);
+                                    paramsSelection.appendChild(paramOption);
+                                })
+                            }
+                        }
                     }
                 }
             });

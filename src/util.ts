@@ -58,9 +58,15 @@ export function getApplicationPath(name: string): vscode.Uri | undefined {
 
 export class ModelInfo {
 	constructor(
+		/** The name of the model */
 		public readonly name: string,
+		/** The model's quantization format */
 		public readonly quantization: string,
+		/** The model's parameter bit precision */
+		public readonly quantizationSize: number,
+		/** The amount of parameters the model has */
 		public readonly parameterSize: string,
+		/** The disk size of the model when downloaded */
 		public readonly size: string
 	) { }
 }
@@ -69,7 +75,7 @@ export function getOllamaModelData(model: string): ModelInfo[] {
 
 	vscode.window.showInformationMessage("Fetching model parameters...");
 
-	const request = execSync(`curl -L https://ollama.com/library/${model}/tags`, { encoding: 'utf-8' });
+	const request = execSync(`curl -Ls https://ollama.com/library/${model}/tags`, { encoding: 'utf-8' });
 	const getHtmlContent = cheerio.load(request);
 	let modelInfo = getHtmlContent.extract({
 		id: [{
@@ -94,14 +100,17 @@ export function getOllamaModelData(model: string): ModelInfo[] {
 
 		const modelName = identifier.split(':')[0];
 		const quantization = identifierParts[identifierParts.length - 1];
-		const parameterSize = identifierParts[0];
+		const quantizationSize = Number.isNaN(Number.parseInt(quantization.split('_')[0])) ? 
+			4 : Number.parseInt(quantization.split('_')[0]);
+
+		const parameterSize = identifierParts[0]; // TODO: change this
 		const size = modelInfo.size[index];
 
 		if (parameterSize.match('[0-9]') === null || uniqueParameters.includes(parameterSize)) {
 			return;
 		}
 		uniqueParameters.push(parameterSize);
-		output.push(new ModelInfo(modelName, quantization, parameterSize, size));
+		output.push(new ModelInfo(modelName, quantization, quantizationSize, parameterSize, size));
 	});
 
 	return output;
@@ -116,4 +125,57 @@ export function setOllamaPATH(extensionContext: vscode.ExtensionContext) {
 			}
 			extensionContext.globalState.update(stateKeys.ollamaPath, applicationPath);
 		});
+}
+
+export function installOllama() {
+	if (vscode.window.terminals.find(t => t.name === "Ollama Installer")) {
+		vscode.window.showWarningMessage("Please check the 'Ollama Installer' terminal to install the required programs");
+		return;
+	}
+	const terminal = vscode.window.createTerminal("Ollama Installer");
+	terminal.show();
+	vscode.window.showInformationMessage('The extension "Education for VSCode" is downloading ollama. You can install your language model after setup.');
+	
+	switch (process.platform) {
+		case 'linux':
+			// do this in the terminal: curl -fsSL https://ollama.com/install.sh | sh
+			terminal.sendText("curl -fsSL https://ollama.com/install.sh | sh");
+			break;
+
+		case 'win32':
+			// get request to https://ollama.com/download/OllamaSetup.exe
+			terminal.sendText('curl -L -o ollamasetup.exe "https://ollama.com/download/OllamaSetup.exe"');
+			// run the executable
+			terminal.sendText('ollamasetup.exe');
+			break;
+
+		default:
+			vscode.window.showInformationMessage("sorry bro youre on your own try downloading ollama yourself");
+			break;
+	}
+}
+
+/**
+ * Fetches the total VRAM(in bytes) of the running machine
+ */
+export function getMachineVRAM(): number {
+	let vram = 0;
+	switch (process.platform) {
+		case 'linux': {
+			// no, i will not implement this for wayland(at least for now)
+			const vramStr = execSync('glxinfo -B | grep "Video memory"', {encoding: 'utf-8'}).trim().split(' ')[2];
+			vram = Number.parseInt(vramStr.split(/[^0-9]/)[0]) * 1024**2;
+			break;
+		}
+		case 'win32': {
+			const vramStr = execSync('powershell "(Get-WmiObject Win32_VideoController).AdapterRAM"', {encoding: 'utf-8'});
+			vramStr.split('\n').forEach(v => vram += Number.parseInt(v));
+			break;
+		}
+		default: {
+			break;
+		}
+	}
+
+	return vram;
 }

@@ -12,7 +12,9 @@ Make the thing remember the last study session
 
 Redo the comments
 
-Path compatability
+Ask the user to install python if python is not found
+
+Allow user to reset the lesson if something goes wrong
 
 */
 
@@ -82,7 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
 					}
 				});
 			}
-			startEducation();
+			startSession();
 		}
 	);
 	const submitCodeRegister = vscode.commands.registerCommand(
@@ -101,6 +103,24 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 
 			testSubmission(vscode.Uri.file(workspaceUri));
+		}
+	);
+	const ollamaSetupRegister = vscode.commands.registerCommand(
+		extensionName + '.setupOllama',
+		async () => {
+			const installConfirmation = await vscode.window.showWarningMessage("Doing this will require installing 'ollama'(required 1GB, recommended >6GB). Do you want to continue?", 'Yes', 'No');
+
+			if (installConfirmation === 'Yes') {
+				util.installOllama();
+				return;
+			}
+
+			const setPATHConfirmation = await vscode.window.showInformationMessage("Do you want to set ollama's PATH manually?", "Yes", "No");
+
+			if (setPATHConfirmation === 'No') {
+				return;
+			}
+			util.setOllamaPATH(extensionContext);
 		}
 	);
 
@@ -154,25 +174,22 @@ export function activate(context: vscode.ExtensionContext) {
 				);
 				vscode.commands.executeCommand("workbench.action.splitEditorToRightGroup");
 
-				const instructionFileUri = vscode.Uri.joinPath(context.extensionUri, "resources", "contents", "instructions", `lesson${lessonNumber}.html`);
+				const instructionFileUri = vscode.Uri.joinPath(context.extensionUri, "resources", "contents", "instructions", `instruction${lessonNumber}.html`);
 				let instructionsContent = fs.readFileSync(instructionFileUri.fsPath, { encoding: "utf-8" }); // TODO: edit this when option changes
 				instructionsView.webview.html = instructionsContent;
 
-				if (!context.globalState.get(util.stateKeys.isOllamaInstalled)) {
-					const installerRegister = vscode.window.registerWebviewViewProvider(
-						util.modelInstallerViewId, 
-						new chat.ChatModelInstaller(extensionContext)
-					);
-					registeredMiscDisposables.push(installerRegister);
-				} else {
-					const chatRegister = vscode.window.registerWebviewViewProvider(
-						util.chatViewId,
-						new chat.Chat(extensionContext.extensionUri, instructionsContent),
-						{ webviewOptions: { retainContextWhenHidden: true } }
-					);
-					registeredMiscDisposables.push(chatRegister);
-				}
-				// TODO: make chat go chat
+				const installerRegister = vscode.window.registerWebviewViewProvider(
+					util.modelInstallerViewId,
+					new chat.ChatModelInstaller(extensionContext),
+					{ webviewOptions: { retainContextWhenHidden: true } }
+				);
+				registeredMiscDisposables.push(installerRegister);
+				const chatRegister = vscode.window.registerWebviewViewProvider(
+					util.chatViewId,
+					new chat.Chat(extensionContext, instructionsContent),
+					{ webviewOptions: { retainContextWhenHidden: true } }
+				);
+				registeredMiscDisposables.push(chatRegister);
 			});
 		});
 	}
@@ -184,14 +201,16 @@ export function activate(context: vscode.ExtensionContext) {
 	registeredCommands.push(
 		submitCodeRegister,
 		closeEducationRegister,
-		startEducationRegister);
+		startEducationRegister,
+		ollamaSetupRegister
+	);
 
 	registeredCommands.forEach((command) => {
 		context.subscriptions.push(command);
 	});
 }
 
-function startEducation() {
+function startSession() {
 	let options: vscode.OpenDialogOptions = {
 		canSelectMany: false,
 		canSelectFiles: false,
@@ -199,42 +218,45 @@ function startEducation() {
 	};
 
 	// Open a directory selector
-	vscode.window.showOpenDialog(options).then(writeDir => {
-		if (writeDir && writeDir[0]) {
-			// Check if the selected directory is empty
-			extensionContext.globalState.update(util.stateKeys.isStudySessionOpened, true);
-			fs.promises.readdir(writeDir[0].fsPath, null).then(files => {
-				if (files.length === 0) {
-					// If the selected directory is empty, let the user pick the language they want to learn from the list of options
-					vscode.window.showQuickPick(langList, { canPickMany: false }).then(answer => {
-						if (!answer) { return; }
-						generateCodeFiles(answer, writeDir[0]);
-					});
-				} else {
-					// If the selected directory is not empty, requests the user a deletion of the folder contents
-					vscode.window.showWarningMessage("The directory is not empty. Delete contents?(Actions cannot be reversed)", {}, "No", "Yes").then(ans => {
-						if (ans !== "Yes") {
-							return;
-						} else {
-							fs.rmSync(writeDir[0].fsPath, { recursive: true, maxRetries: 0, force: true });
-							if (fs.existsSync(writeDir[0].fsPath)) {
-								vscode.window.showErrorMessage("Cannot remove file");
-								return;
-							}
-							fs.mkdirSync(writeDir[0].fsPath);
+	const selectWorkspace = async () => {
+		const writeDir = await vscode.window.showOpenDialog(options);
 
-							// If the selected directory is empty, let the user pick the language they want to learn from the list of options
-							vscode.window.showQuickPick(langList, { canPickMany: false }).then(answer => {
-								if (!answer) { return; }
+		const isDirectoryNull = !(writeDir && writeDir[0]);
+		if (isDirectoryNull) { return; }
 
-								generateCodeFiles(answer, writeDir[0]);
-							});
-						}
-					});
+		// Check if the selected directory is empty
+		extensionContext.globalState.update(util.stateKeys.isStudySessionOpened, true);
+		const files = await fs.promises.readdir(writeDir[0].fsPath, null);
+		if (files.length === 0) {
+			// If the selected directory is empty, let the user pick the language they want to learn from the list of options
+			const language = await vscode.window.showQuickPick(langList, { canPickMany: false });
+			
+			if (!language) { return; }
+			generateCodeFiles(language, writeDir[0]);
+
+		} else {
+			// If the selected directory is not empty, requests the user a deletion of the folder contents
+			const deletionConfirmation = await vscode.window.showWarningMessage("The directory is not empty. Delete contents? This action cannot be reversed.", {}, "No", "Yes");
+			if (deletionConfirmation !== "Yes") {
+				return;
+			} else {
+				fs.rmSync(writeDir[0].fsPath, { recursive: true, maxRetries: 0, force: true });
+				if (fs.existsSync(writeDir[0].fsPath)) {
+					vscode.window.showErrorMessage("Cannot remove file");
+					return;
 				}
-			});
+				fs.mkdirSync(writeDir[0].fsPath);
+
+				// If the selected directory is empty, let the user pick the language they want to learn from the list of options
+				const language = await vscode.window.showQuickPick(langList, { canPickMany: false });
+				if (!language) { return; }
+
+				generateCodeFiles(language, writeDir[0]);
+			}
 		}
-	});
+	};
+
+	selectWorkspace();
 }
 
 function generateCodeFiles(language: string, writeDir: vscode.Uri) {
@@ -276,7 +298,10 @@ function generateCodeFiles(language: string, writeDir: vscode.Uri) {
 }
 
 function testSubmission(workspacePath: vscode.Uri) {
-	// TODO: check if workspacePath is not valid
+	if (!fs.existsSync(workspacePath.fsPath)) {
+		util.logError("workspacePath does not exist");
+		return;
+	}
 
 	let codeLanguage = extensionContext.globalState.get(util.stateKeys.language, undefined);
 	if (codeLanguage === undefined) {
@@ -306,7 +331,7 @@ function testSubmission(workspacePath: vscode.Uri) {
 		util.logError(`language folder ${codeLanguage} does not exist`);
 		return;
 	}
-	const testFileReadUri = vscode.Uri.joinPath(languageReadFolderUri, "tests", "lesson" + lessonNumber + fileExtension.get(codeLanguage));
+	const testFileReadUri = vscode.Uri.joinPath(languageReadFolderUri, "tests", "test" + lessonNumber + fileExtension.get(codeLanguage));
 	let testFileWriteUri = vscode.Uri.joinPath(workspacePath, "test" + fileExtension.get(codeLanguage));
 	fs.copyFileSync(
 		testFileReadUri.fsPath,

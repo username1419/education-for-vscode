@@ -1,88 +1,137 @@
+<!DOCTYPE html>
 <html>
-    <head>
-        <link rel="stylesheet" href="installer.css">
-    </head>
-    <body>
-        <select id="model-selection" onchange="onModelSelect()" >
 
-        </select>
-        <select id="params-selection">
+<head>
+    <style>
+        select {
+            background-color: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            color: var(--vscode-dropdown-foreground);
+            border-radius: 2px;
+            height: 1.2;
+        }
 
-        </select>
-        <p class="warning"></p>
-        <button onclick="onInstall()">Install</button>
-        <script>
-            const vscode = acquireVsCodeApi();
+        select > * {
+            background-color: var(--vscode-dropdown-background);
+        }
 
-            window.addEventListener('message', event => {
-                const message = event.data;
-                const defaultOption = document.createElement('option');
-                defaultOption.setAttribute('selected', true);
-                defaultOption.setAttribute('hidden', true);
-                defaultOption.setAttribute('disabled', true);
+        select > *:hover {
+            background-color: var(--vscode-dropdown-background);
+            border-color: var(--vscode-dropdown-border);
+            color: var(--vscode-dropdown-foreground);
+        }
 
-                console.log(message);
-                switch (message.command) {
-                    case 'createModelOptions':
-                        let modelSelection = document.getElementById('model-selection');
-                        modelSelection.childNodes.forEach((child) => {
-                            modelSelection.removeChild(child);
-                        });
+        button {
+            background-color: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            color: var(--vscode-button-foreground);
+            border-radius: 2px;
+            margin-top: 5px;
+        }
 
-                        if (!Array.isArray(message.content)) { return; }
+        button:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
 
-                        defaultOption.text = 'Choose Model';
-                        modelSelection.appendChild(defaultOption);
+        .warning > p {
+            color: red;
+        }
+    </style>
+</head>
 
-                        message.content.forEach((model) => {
-                            console.log(model);
-                            if (!typeof model === 'string') { return; }
-                            let option = document.createElement('option');
-                            option.text = model;
-                            modelSelection.appendChild(option);
-                        });
-                        break;
-                        
-                    case 'createParamsOptions':
-                        let paramsSelection = document.getElementById('params-selection');
-                        paramsSelection.childNodes.forEach((child) => {
-                            paramsSelection.removeChild(child);
-                        });
+<body>
+    <select id="model-selection" onchange="onModelSelect()">
+        <option selected disabled>Model</option>
+    </select>
+    <select id="params-selection" onchange="onParamSelect()">
+        <option selected disabled>Size</option>
+    </select>
+    <div class="warning"></div>
+    <button onclick="onInstall()">Install</button>
+    <script>
+        const vscode = acquireVsCodeApi();
 
-                        if (!Array.isArray(message.content)) { return; }
+        window.addEventListener('message', event => {
+            const message = event.data;
 
-                        defaultOption.text = 'Choose Parameter Size';
-                        paramsSelection.appendChild(defaultOption);
+            switch (message.command) {
+                case 'createModelOptions': {
+                    let modelSelection = document.getElementById('model-selection');
+                    modelSelection.childNodes.forEach((child, index) => {
+                        if (index === 1) { return; }
+                        modelSelection.removeChild(child);
+                    });
 
-                        message.content.forEach((modelInfo) => {
-                            if (!typeof modelInfo.parameterSize === 'string' ) { return; }
-                            let option = document.createElement('option');
-                            option.text = modelInfo.parameterSize;
-                            paramsSelection.appendChild(option);
-                        });
-                        break;
+                    if (!Array.isArray(message.content)) { return; }
 
-                    default:
-                        console.log(`command not recognized: ${message.command}`);
-                        break;
+                    message.content.forEach((model) => {
+                        console.log(model);
+                        if (!typeof model === 'string') { return; }
+                        let option = document.createElement('option');
+                        option.text = model;
+                        modelSelection.appendChild(option);
+                    });
+                    break;
                 }
-            });
+                case 'createParamsOptions': {
+                    let paramsSelection = document.getElementById('params-selection');
+                    paramsSelection.childNodes.forEach((child, index) => {
+                        if (index === 1) { return; }
+                        paramsSelection.removeChild(child);
+                    });
 
-            function onModelSelect() {
-                vscode.postMessage({
-                    command: 'setParamsReq',
-                    model: document.getElementById("model-selection").value
-                })
-            }
+                    if (!Array.isArray(message.content)) { return; }
 
-            function onInstall() {
-                // TODO: check if anything is filled out
-                vscode.postMessage({
-                    command: "installModel",
-                    model: document.getElementById("model-selection").value,
-                    params: document.getElementById("params-selection").value
-                })
+                    message.content.forEach((modelInfo) => {
+                        if (!typeof modelInfo.parameterSize === 'string') { return; }
+                        let option = document.createElement('option');
+                        option.text = modelInfo.parameterSize;
+                        paramsSelection.appendChild(option);
+                    });
+                    break;
+                }
+                case 'setWarningMessage': {
+                    if (!(typeof message.content === "string")) { return; }
+                    const warning = document.getElementsByClassName('warning')[0];
+                    message.content.split('\n').forEach(v => {
+                        const textNode = document.createElement('p');
+                        textNode.textContent = v;
+                        warning.appendChild(textNode);
+                    })
+                    break;
+                }
+                default:
+                    console.log(`command not recognized: ${message.command}`);
+                    break;
             }
-        </script>
-    </body>
+        });
+
+        function onModelSelect() {
+            vscode.postMessage({
+                command: 'setParamsReq',
+                model: document.getElementById("model-selection").value
+            })
+        }
+
+        function onParamSelect() {
+            vscode.postMessage({
+                command: 'validateParamsReq',
+                param: document.getElementById("params-selection").value
+            })
+        }
+
+        function onInstall() {
+            const modelSelect = document.getElementById("model-selection");
+            const paramSelect = document.getElementById("params-selection");
+            if (modelSelect.selectedIndex <= 0 || paramSelect.selectedIndex <= 0) { return; }
+
+            vscode.postMessage({
+                command: "installModel",
+                model: modelSelect.value,
+                params: paramSelect.value
+            })
+        }
+    </script>
+</body>
+
 </html>
