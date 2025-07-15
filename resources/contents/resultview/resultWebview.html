@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            div.code-div {
+                background-color: var(--vscode-textPreformat-background);
+                border-radius: 8px;
+                padding: 10px;
+            }
+
+            pre.code-pre {
+                margin: unset;
+                white-space: unset;
+            }
+
+            code {
+                white-space: pre-wrap;
+                background-color: unset;
+            }
+
+            #expected {
+                color: greenyellow;
+                
+            }
+
+            #proceed { 
+                background-color: var(--vscode-button-background);
+                border: 2px solid var(--vscode-button-border);
+                border-radius: 12px;
+                color: var(--vscode-button-foreground);
+                align-content: center;
+                align-self: center;
+                width: 2vw;
+            }
+
+            #proceed:hover {
+                background-color: var(--vscode-button-hoverBackground);
+            }
+        </style>
+    </head>
+    <!-- TODO: the code blocks are broken -->
+    <body style="font-size: medium; line-height: 1.35;">
+        <h1 id="status">
+            
+        </h1>
+        <hr>
+        <div id="error-log">
+            <p>
+                <b>
+                    Output:
+                </b>
+            </p>
+            <div class="code-div">
+                <pre class="code-pre">
+                    <code id="output">
+                    
+                    </code><br>
+                </pre>
+            </div>
+            <p>
+                <b>
+                    Expected:
+                </b>
+            </p><br>
+            <div class="code-div">
+                <pre class="code-pre">
+                    <code id="expected">
+                        
+                    </code>
+                </pre>
+            </div>
+            <div class="code-div">
+                <pre class="code-pre">
+                    <code id="errors">
+
+                    </code>
+                </pre>
+            </div>
+        </div>
+        <div id="proceed-container"></div>
+
+        <script>
+            let proceedContainer = document.getElementById("proceed-container");
+            let statusHeader = document.getElementById("status");
+            let outputLog = document.getElementById("output");
+            let expectedLog = document.getElementById("expected");
+            let errorsLog = document.getElementById("errors");
+            const vscode = acquireVsCodeApi();
+
+            window.addEventListener('message', event => {
+                const message = event.data;
+
+                switch (message.command) {
+                    case "postResults": {
+                        let status = message.content.status;
+                        let expectedOutput = message.content.expected;
+                        let output = message.content.output;
+                        let errors = message.content.errors;
+                        if (!status instanceof String) { return; }
+                        if (!expectedOutput instanceof String) { return; }
+                        if (!output instanceof String) { return; }
+                        if (!errors instanceof String) { return; }
+
+                        if (status === 'pass') {
+                            let button = document.createElement('button');
+                            button.onclick = e => { // TODO: button has wrong dimensions
+                                vscode.postMessage({
+                                    command: 'postLessonProceed'
+                                });
+                                button.onclick = e => {}
+                            };
+                            button.id = 'proceed';
+                            button.textContent = "Proceed ⮞";
+                            proceedContainer.appendChild(button);
+
+                            statusHeader.textContent = "Test Passed!";
+
+                            outputLog.attributeStyleMap.set("color", "greenyellow");
+                            
+                        } else {
+                            statusHeader.textContent = "Test Failed.";
+
+                            outputLog.attributeStyleMap.set("color", "red");
+                        }
+
+                        outputLog.textContent = output;
+                        expectedLog.textContent = expectedOutput;
+                        errorsLog.textContent = errors;
+                        break;
+                    }
+                }
+            });
+        </script>
+    </body>
+</html>

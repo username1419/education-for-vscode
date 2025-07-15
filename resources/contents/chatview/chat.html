@@ -191,6 +191,13 @@
                 sendMessage();
             });
 
+            promptInputbox.addEventListener('keypress', event => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    sendMessage();
+                    event.stopImmediatePropagation();
+                }
+            });
+
             let streamingBotMessage = null;
 
             window.addEventListener('message', event => {
@@ -202,6 +209,11 @@
                         break;
                     }
                     case 'chatMessageAppend': {
+                        if (typeof message.content === "object") {
+                            loadingIndicator.textContent = 'AI is thinking...';
+                            return;
+                        }
+                        removeLoading();
                         streamingBotMessage.textContent += message.content;
                         chat.scrollTop = chat.scrollHeight;
                         break;

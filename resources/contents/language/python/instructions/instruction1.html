@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Lesson 1</title>
+        <style>
+            * {
+                font-size: medium;
+                line-height: 1.35;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>
+            Lesson 1: Variables, Outputs, and Inputs
+        </h1>
+        <hr>
+        <!-- TODO: Variables > Output > Input -->
+        <h4>Part One: Variables</h4>
+        <p id="explanation">
+            Variables are containers for a value representing a specific data type. <br>
+            <img src="{variable_representation.svg}" style="background-color: white;" width=40% alt="An opened box with the text 'variable' in front of it. An arrow points towards the contents of the box. On the opposite end of the arrow is the string 'value'."><br>
+            Variables are created in 2 processes: Declaration and Value assignment.<br>
+            Declaration is the first process of creating a variable. It involves naming
+            the variable and assigning a data type to it. <br>
+            Value assignment is the second process of creating a variable. It involves
+            assigning a value to the previously declared variable. The to-be assigned 
+            value <b>must</b> match the data type of the variable it will be assigned 
+            to.<br>
+            In Python, these 2 processes are done at the same time using the statement:
+            <code>variable = value</code>. For example, this is the code to create a 
+            variable named <code>message</code> and assign the string value 
+            <code>Hello!</code> to it:<br>
+        </p>
+        <div>
+            <code style="font-size: large;">
+               message = "Hello!"
+            </code>
+        </div>
+        <!-- TODO: perform operations on data type values -->
+        <h4>Part Two: Outputs</h4>
+        <p>
+            To display your variable's value to the big black box, also known as the 
+            console, you can type in the line <code>print(message)</code> after 
+            assigning the variable. After saving the file, open the console by 
+            pressing <code>Ctrl+Shift+`</code>, and typing 
+            <code>python3 lesson1.py</code>. This is called <b>running</b> the file. If 
+            something like <code>Command not found</code> appears, you may not have 
+            Python installed. You can download Python by going to <a href="https://www.python.org/downloads">this link</a>.
+            Otherwise, the box should display the line:
+        </p>
+        <div>
+            <code style="font-size: large;">
+                Hello!
+            </code>
+        </div>
+        <p>
+            Hello, console!<br>
+            Additionally, you can use <code>print(value)</code>to display any value in 
+            the console. For example, you can type <code>print("Hello World!")</code> 
+            in your file and run it with the instructions above to display <code>Hello World!</code> 
+            in your console. This also works with other data types too:<br>
+            <ul>
+                <li><code>print(1)</code> displays <code>1</code></li>
+                <li><code>print(0.1)</code> displays <code>0.1</code></li>
+                <li><code>print(true)</code> displays <code>true</code></li>
+            </ul>
+        </p>
+        <h4>Part Three: Inputs</h4>
+        <p>
+            To ask for user input, we use <code>input()</code>. For example, to ask the 
+            user for their name, then create a variable called <code>name</code> with 
+            what the user entered as its value, we can type:
+        </p>
+        <div><code>
+            name = input("What's your name? ")
+        </code></div>
+        <p>
+            When the Python encounters <code>input()</code>, it pauses the program and 
+            waits for the user to type something in the keyboard and press <code>Enter</code>. 
+            The string value inside the parentheses ( ) is displayed before the user enters 
+            their desired input. The <code>input()</code> then 
+        </p>
+        <br>
+        <p id="task">
+            <b>
+                To demonstrate your understanding of this, create a form with 2 fields 
+                that accepts 2 numbers, and output the sum of them.<br>
+                Hint: the result of `input()` is a value of `string` data type. 
+                You will need to convert the result of `input` to a value of `integer` 
+                data type.
+            </b>
+        </p>
+    </body>
+</html>

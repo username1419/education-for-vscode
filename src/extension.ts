@@ -1,20 +1,24 @@
-import { ChildProcess, execFileSync, execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 import * as util from './util';
 import * as chat from './chat';
+import { ResultWebView, ResultStatus } from './resultWebview';
 
 /*
 
 TODO LIST:
 
-Make the thing remember the last study session
+Make the thing remember the last study session - 
+progress: uhhhh for reasons in the global state updates that this is somewhat already implemented but it deletes your files every time
 
 Redo the comments
 
-Ask the user to install python if python is not found
-
 Allow user to reset the lesson if something goes wrong
+
+TEST THIS ON MACHINES THAT CANT USE THE TERMINAL
+
+ERROR: check the lessons if they go over the possible lessons
 
 */
 
@@ -25,7 +29,7 @@ const fileExtension: Map<string, string> = new Map(
 	]
 );
 const defaultRunApplication: Map<string, string> = new Map([
-	["python", "/.venv/bin/python3"]
+	["python", ".venv/bin/python3"]
 ]);
 const langList: string[] = [];
 const langUri: vscode.Uri[] = [];
@@ -44,7 +48,7 @@ export function activate(context: vscode.ExtensionContext) {
 	extensionContext = context;
 
 	// Saves the path of lessons to array for later loading
-	const contentsUri = vscode.Uri.joinPath(context.extensionUri, "resources", "contents");
+	const contentsUri = vscode.Uri.joinPath(context.extensionUri, "resources", "contents", "language");
 	fs.promises.readdir(contentsUri.fsPath, null).then(folders => {
 		folders.forEach(obj => {
 			langList.push(obj);
@@ -59,37 +63,36 @@ export function activate(context: vscode.ExtensionContext) {
 	// Register the command education-vscode.startEducation
 	const closeEducationRegister = vscode.commands.registerCommand(
 		extensionName + ".endEducation",
-		() => {
+		async () => {
 			if (!context.globalState.get(util.stateKeys.isStudySessionOpened)) {
 				vscode.window.showErrorMessage("No study session opened.");
 				return;
 			}
-			context.globalState.update(util.stateKeys.isStudySessionOpened, false);
-			vscode.commands.executeCommand("workbench.action.closeAllEditors");
+			await context.globalState.update(util.stateKeys.isStudySessionOpened, false);
+			await vscode.commands.executeCommand("workbench.action.closeAllEditors");
 			vscode.workspace.updateWorkspaceFolders(0, vscode.workspace.workspaceFolders?.length);
 		}
 	);
 	const startEducationRegister = vscode.commands.registerCommand(
 		extensionName + '.startEducation',
-		() => {
+		async () => {
 			if (context.globalState.get(util.stateKeys.isStudySessionOpened)) {
 				vscode.window.showErrorMessage("An study session is already opened.");
 				return;
 			}
 			if (vscode.workspace.name !== undefined) {
 				// Warn users that continuing will close all files without saving, if they have files open in workspace
-				vscode.window.showWarningMessage("Continuing will close all documents without saving. Continue?", "Yes", "No").then(answer => {
-					if (answer === "No") {
-						return;
-					}
-				});
+				const answer = await vscode.window.showWarningMessage("Continuing will close all documents without saving. Continue?", "Yes", "No");
+				if (answer !== "Yes") {
+					return;
+				}
 			}
 			startSession();
 		}
 	);
 	const submitCodeRegister = vscode.commands.registerCommand(
 		extensionName + '.submitCode',
-		() => {
+		async () => {
 			if (!context.globalState.get(util.stateKeys.isStudySessionOpened)) {
 				vscode.window.showErrorMessage("No study session is opened.");
 				return;
@@ -98,7 +101,7 @@ export function activate(context: vscode.ExtensionContext) {
 			let workspaceUri = context.globalState.get(util.stateKeys.workspacePath, "");
 			if (workspaceUri === "") {
 				vscode.window.showErrorMessage("Cannot retrieve workspacePath");
-				context.globalState.update(util.stateKeys.isStudySessionOpened, false);
+				await context.globalState.update(util.stateKeys.isStudySessionOpened, false);
 				return;
 			}
 
@@ -133,11 +136,14 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 
 		if (!context.globalState.get(util.stateKeys.isWorkspaceLoaded)) {
-			context.globalState.update(util.stateKeys.isWorkspaceLoaded, true);
-			disposeDisposables();
-			vscode.workspace.updateWorkspaceFolders(0, vscode.workspace.workspaceFolders?.length, {
-				uri: vscode.Uri.file(workspacePath)
-			});
+			const reloadWithWorkspace = async () => {
+				await context.globalState.update(util.stateKeys.isWorkspaceLoaded, true);
+				disposeDisposables();
+				vscode.workspace.updateWorkspaceFolders(0, vscode.workspace.workspaceFolders?.length, {
+					uri: vscode.Uri.file(workspacePath)
+				});
+			};
+			reloadWithWorkspace();
 		}
 		vscode.commands.executeCommand("workbench.action.closeAllEditors");
 		let language = context.globalState.get(util.stateKeys.language, "");
@@ -174,8 +180,13 @@ export function activate(context: vscode.ExtensionContext) {
 				);
 				vscode.commands.executeCommand("workbench.action.splitEditorToRightGroup");
 
-				const instructionFileUri = vscode.Uri.joinPath(context.extensionUri, "resources", "contents", "instructions", `instruction${lessonNumber}.html`);
-				let instructionsContent = fs.readFileSync(instructionFileUri.fsPath, { encoding: "utf-8" }); // TODO: edit this when option changes
+				const instructionFileUri = vscode.Uri.joinPath(context.extensionUri, "resources", "contents", "language", language, "instructions", `instruction${lessonNumber}.html`);
+				let instructionsContent = fs.readFileSync(instructionFileUri.fsPath, { encoding: "utf-8" });
+				instructionsContent = instructionsContent.replace(/{([a-zA-Z_\.]+)}/g, match => {
+					const imageFileName = match.substring(1, match.length - 1);
+					const matchUri = vscode.Uri.joinPath(extensionContext.extensionUri, "resources", "contents", "language", language, "instructions", "images", imageFileName);
+					return instructionsView.webview.asWebviewUri(matchUri).toString();
+				});
 				instructionsView.webview.html = instructionsContent;
 
 				const installerRegister = vscode.window.registerWebviewViewProvider(
@@ -225,12 +236,12 @@ function startSession() {
 		if (isDirectoryNull) { return; }
 
 		// Check if the selected directory is empty
-		extensionContext.globalState.update(util.stateKeys.isStudySessionOpened, true);
+		await extensionContext.globalState.update(util.stateKeys.isStudySessionOpened, true);
 		const files = await fs.promises.readdir(writeDir[0].fsPath, null);
 		if (files.length === 0) {
 			// If the selected directory is empty, let the user pick the language they want to learn from the list of options
 			const language = await vscode.window.showQuickPick(langList, { canPickMany: false });
-			
+
 			if (!language) { return; }
 			generateCodeFiles(language, writeDir[0]);
 
@@ -264,7 +275,12 @@ function generateCodeFiles(language: string, writeDir: vscode.Uri) {
 	let lessonOriginFolderUri = langUri[langList.findIndex(x => x === language)];
 
 	if (language === "python") {
-		let output = execSync(`${defaultRunApplication.get(language)} -m venv .venv`,
+		let pythonExecutableUri = util.getApplicationPath('python3');
+		if (pythonExecutableUri === undefined) {
+			vscode.window.showErrorMessage("Python is not installed. Install python by going to www.python.org/downloads and add python to PATH.");
+			return;
+		}
+		let output = spawnSync(pythonExecutableUri.fsPath.trim(), ['-m', 'venv', '.venv'],
 			{
 				cwd: writeDir.fsPath
 			}
@@ -287,10 +303,46 @@ function generateCodeFiles(language: string, writeDir: vscode.Uri) {
 
 	// Update workspace files
 	vscode.workspace.openTextDocument(lessonDirUri).then(doc => {
-		vscode.window.showTextDocument(doc).then(editor => {
-			extensionContext.globalState.update(util.stateKeys.workspacePath, writeDir.fsPath);
-			extensionContext.globalState.update(util.stateKeys.language, language);
-			extensionContext.globalState.update(util.stateKeys.isWorkspaceLoaded, true);
+		vscode.window.showTextDocument(doc).then(async editor => {
+			await extensionContext.globalState.update(util.stateKeys.workspacePath, writeDir.fsPath);
+			await extensionContext.globalState.update(util.stateKeys.language, language);
+			await extensionContext.globalState.update(util.stateKeys.isWorkspaceLoaded, true);
+			disposeDisposables();
+			vscode.workspace.updateWorkspaceFolders(0, vscode.workspace.workspaceFolders?.length, { uri: writeDir });
+		});
+	});
+}
+
+function generateLessonFiles(language: string, writeDir: vscode.Uri) {
+	let lessonOriginFolderUri = langUri[langList.findIndex(x => x === language)];
+
+	if (language === "python") {
+		let pythonExecutableUri = util.getApplicationPath('python3');
+		if (pythonExecutableUri === undefined) {
+			vscode.window.showErrorMessage("Python is not installed. Install python by going to www.python.org/downloads and add python to PATH.");
+			return;
+		}
+		let output = spawnSync(pythonExecutableUri.fsPath.trim(), ['-m', 'venv', '.venv'],
+			{
+				cwd: writeDir.fsPath
+			}
+		);
+		util.logDebug(extensionName, output);
+	}
+
+	// Copy the files to the specified path
+	const lessonNumber: number = extensionContext.globalState.get(util.stateKeys.currentLesson, 0);
+	let lessonDirUri = vscode.Uri.joinPath(writeDir, "lesson" + lessonNumber + fileExtension.get(language));
+
+	const lessonFileReadUri = vscode.Uri.joinPath(lessonOriginFolderUri, "lessons", "lesson" + lessonNumber + fileExtension.get(language));
+	const lessonFileWriteUri = vscode.Uri.joinPath(writeDir, "lesson" + lessonNumber + fileExtension.get(language));
+
+	fs.copyFileSync(lessonFileReadUri.fsPath, lessonFileWriteUri.fsPath);
+
+	// Update workspace files
+	vscode.workspace.openTextDocument(lessonDirUri).then(doc => {
+		vscode.window.showTextDocument(doc).then(async editor => {
+			await extensionContext.globalState.update(util.stateKeys.isWorkspaceLoaded, true);
 			disposeDisposables();
 			vscode.workspace.updateWorkspaceFolders(0, vscode.workspace.workspaceFolders?.length, { uri: writeDir });
 		});
@@ -321,6 +373,7 @@ function testSubmission(workspacePath: vscode.Uri) {
 		lessonNumber = lesson;
 	});
 	if (baseFilePath === "") {
+		vscode.window.showErrorMessage("Education for VSCode: workspace directories are currently not supported.");
 		util.logError(extensionName, "base file path is not in root workspace");
 		util.logError(extensionName, "fix this later or smth"); // TODO: fix this
 		return;
@@ -338,14 +391,59 @@ function testSubmission(workspacePath: vscode.Uri) {
 		testFileWriteUri.fsPath
 	);
 
-	let command = defaultRunApplication.get(codeLanguage) + " " + testFileWriteUri;
-	let output = execSync(
-		command,
+	let output = spawnSync(
+		defaultRunApplication.get(codeLanguage) || "",
+		[testFileWriteUri.fsPath],
 		{
-			cwd: workspacePath.fsPath
+			cwd: workspacePath.fsPath,
+			encoding: 'utf-8'
 		}
 	);
-	util.logDebug(extensionName, output); // TODO: evaluate output
+	util.logDebug(extensionName, output.output); // TODO: evaluate output
+
+	const errorLines = output.stderr.split('\n');
+	const outputLines = output.output.map(s => (s || '').trim());
+	let expectedOutput = '';
+	let gotInstead = '';
+	let errors = '';
+	
+	const outputStatus = outputLines[outputLines.length - 1] || "";
+	if (outputStatus.includes("OK") || !output.stderr) { // TODO: think of a better way to do this
+		new ResultWebView(
+			extensionContext,
+			ResultStatus.Pass,
+			expectedOutput,
+			gotInstead,
+			errors,
+			async function onProceed() {
+				const currentLesson = extensionContext.globalState.get(util.stateKeys.currentLesson, 0);
+				await extensionContext.globalState.update(util.stateKeys.currentLesson, currentLesson + 1);
+
+				generateCodeFiles(codeLanguage, workspacePath);
+			}
+		).initializeWebview();
+	} else {
+		if (codeLanguage === 'python') {
+			errors = errorLines.filter(s => s.includes("AssertionError")).map(s => s.replace("AssertionError: ", "")).join('\n');
+			const error = errorLines.find(s => s.includes("AssertionError")) || "";
+			if (error === "") {
+				util.logError(extensionName, "cannot find error");
+				return;
+			}
+			expectedOutput = error.split("'")[1];
+			gotInstead = error.split("'")[3];
+		}
+		new ResultWebView(
+			extensionContext,
+			ResultStatus.Fail,
+			expectedOutput,
+			gotInstead,
+			errors,
+			function onProceed() {
+				vscode.window.showErrorMessage("You shouldn't be able to do that");
+			}
+		).initializeWebview();
+	}
 
 	fs.rmSync(testFileWriteUri.fsPath);
 }

@@ -1,4 +1,4 @@
-import { exec, execSync } from 'child_process';
+import { fork, spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 import * as cheerio from 'cheerio';
@@ -27,6 +27,7 @@ export enum stateKeys {
 
 export const modelInstallerViewId = 'model-installer-view';
 export const chatViewId = 'chat-view';
+export const resultViewId = 'result-view';
 
 /**
  * Search PATH for application path
@@ -34,15 +35,15 @@ export const chatViewId = 'chat-view';
  * @returns A {@link vscode.Uri} containing the path of the application binary
  */
 export function getApplicationPath(name: string): vscode.Uri | undefined {
-	const result = execSync(`${process.platform === 'linux' ? 'which' : 'where'} ${name}`, {encoding: 'utf-8'});
-	if (result !== '' && result !== "INFO: Could not find files for the given pattern(s).") {
-		return vscode.Uri.file(result);
+	const result = spawnSync(process.platform === 'linux' ? 'which' : 'where', [name], {encoding: 'utf-8'});
+	if (result.stdout && result.stdout !== "INFO: Could not find files for the given pattern(s).") {
+		return vscode.Uri.file(result.stdout.trim());
 	}
 	
 	let out: vscode.Uri | undefined = undefined;
-	const cmdout = execSync(`echo ${process.platform === 'linux' ? '$PATH' : '%PATH%'}`, { encoding: 'utf-8' });
+	const cmdout = spawnSync('echo' , [process.platform === 'linux' ? '$PATH' : '%PATH%'], { encoding: 'utf-8' });
 
-	const PATH = cmdout;
+	const PATH = cmdout.stdout;
 	if (!(typeof PATH === 'string')) { return; }
 	const paths = PATH.split(":");
 	for (let i = 0, len = paths.length; i < len; i++) {
@@ -75,8 +76,8 @@ export function getOllamaModelData(model: string): ModelInfo[] {
 
 	vscode.window.showInformationMessage("Fetching model parameters...");
 
-	const request = execSync(`curl -Ls https://ollama.com/library/${model}/tags`, { encoding: 'utf-8' });
-	const getHtmlContent = cheerio.load(request);
+	const request = spawnSync('curl' , ['-Ls', `https://ollama.com/library/${model}/tags`], { encoding: 'utf-8' });
+	const getHtmlContent = cheerio.load(request.stdout);
 	let modelInfo = getHtmlContent.extract({
 		id: [{
 			selector: 'input.command.hidden',
@@ -163,13 +164,15 @@ export function getMachineVRAM(): number {
 	switch (process.platform) {
 		case 'linux': {
 			// no, i will not implement this for wayland(at least for now)
-			const vramStr = execSync('glxinfo -B | grep "Video memory"', {encoding: 'utf-8'}).trim().split(' ')[2];
+			const vramStr = (spawnSync('glxinfo', ['-B'], {encoding: 'utf-8'}) // get graphics info
+				.stdout.split('\n').find(s => s.includes("Video memory")) || '') // parse to get video memory
+				.trim().split(' ')[2]; // parse again to get video memory amount
 			vram = Number.parseInt(vramStr.split(/[^0-9]/)[0]) * 1024**2;
 			break;
 		}
 		case 'win32': {
-			const vramStr = execSync('powershell "(Get-WmiObject Win32_VideoController).AdapterRAM"', {encoding: 'utf-8'});
-			vramStr.split('\n').forEach(v => vram += Number.parseInt(v));
+			const vramStr = spawnSync('powershell', ['"(Get-WmiObject Win32_VideoController).AdapterRAM"'], {encoding: 'utf-8'});
+			vramStr.stdout.split('\n').forEach(v => vram += Number.parseInt(v));
 			break;
 		}
 		default: {

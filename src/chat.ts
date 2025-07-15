@@ -3,7 +3,7 @@ import { Ollama } from 'ollama';
 import * as util from './util';
 import * as fs from 'fs';
 import si from 'systeminformation';
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 
 const extensionName = "education-for-vscode";
 
@@ -16,6 +16,7 @@ class ChatRequest {
 
 export class Model {
     // tried the same system message on all models, codeLlama seems to just not be able to follow system instructions that well
+    // TODO: do the chatGPT api thing
     public static availableModels = ['deepseek-r1', 'codellama', 'gpt'];
 
     constructor(
@@ -40,7 +41,7 @@ export class Chat implements vscode.WebviewViewProvider {
                 'system',
                 `You are a computer science teacher for the user. Don't tell the user the answer or full solution, but rather, provide hints and guide them towards the solution. Refuse to answer politely if the question is not related to programming and/or computer science. 
                 Assist with the user's technical issues directly, using the information provided below. In addition, the user can use the following commands in Visual Studio Code's Command Palette: 'Education for VSCode: Reset Lesson' to reset their lesson to its initial state, 'Education for VSCode: Submit Code' to submit their work, and 'Education for VSCode: End Study' to end their lesson.
-                The user has been shown the rendered representation of the following html file: \`\`\`html\n${instructions}\`\`\`
+                The user has been shown the rendered representation of the following html file: \`\`\`html\n${instructions || "no instructions"}\`\`\`
                 `)
         );
 
@@ -70,7 +71,7 @@ export class Chat implements vscode.WebviewViewProvider {
             localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'resources', 'contents')]
         };
 
-        const htmlPath = vscode.Uri.joinPath(this.extensionUri, 'resources', 'contents', 'chat', 'chat.html');
+        const htmlPath = vscode.Uri.joinPath(this.extensionUri, 'resources', 'contents', 'chatview', 'chat.html');
         let htmlContent = fs.readFileSync(htmlPath.path, { encoding: 'utf-8' });
         webviewView.webview.html = htmlContent;
 
@@ -86,7 +87,7 @@ export class Chat implements vscode.WebviewViewProvider {
                 return;
             }
         }
-        const reqModels = execSync(`${ollamaPath} list`, {encoding: 'utf-8'}).split('\n');
+        const reqModels = spawnSync(ollamaPath, ['list'], {encoding: 'utf-8'}).stdout.split('\n');
         reqModels.shift();
         reqModels.pop();
         reqModels.forEach(model => {
@@ -117,18 +118,20 @@ export class Chat implements vscode.WebviewViewProvider {
                         this.generateChatResponse(
                             userPrompt,
                             model,
-                            responsePart => { // TODO: trim the newlines at beginning and end
+                            responsePart => {
+                                if (responsePart === '\n\n') {
+                                    return;
+                                }
                                 if (responsePart === '</think>') {
                                     isThinking = false;
                                     return;
                                 }
                                 if (responsePart === '<think>' || isThinking) {
                                     isThinking = true;
-                                    return;
                                 }
                                 webviewView.webview.postMessage({
                                     command: 'chatMessageAppend',
-                                    content: responsePart
+                                    content: isThinking ? {} : responsePart
                                 });
                             },
                             () => webviewView.webview.postMessage({command: 'chatMessgaeDone'})
@@ -161,7 +164,7 @@ export class ChatModelInstaller implements vscode.WebviewViewProvider {
             localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'resources', 'contents')]
         };
 
-        const htmlPath = vscode.Uri.joinPath(this.extensionUri, 'resources', 'contents', 'chat', 'installer.html');
+        const htmlPath = vscode.Uri.joinPath(this.extensionUri, 'resources', 'contents', 'chatview', 'installer.html');
         let htmlContent = fs.readFileSync(htmlPath.path, { encoding: 'utf-8' });
         webviewView.webview.html = htmlContent;
 
