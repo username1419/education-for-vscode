@@ -4,7 +4,8 @@ import * as fs from 'fs';
 
 export enum ResultStatus {
     Pass = "pass",
-    Fail = "fail"
+    Fail = "fail",
+    Error = "error"
 }
 
 export class ResultWebView {

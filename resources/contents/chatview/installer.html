@@ -53,6 +53,7 @@
 
         window.addEventListener('message', event => {
             const message = event.data;
+            console.log(message);
 
             switch (message.command) {
                 case 'createModelOptions': {
@@ -65,7 +66,6 @@
                     if (!Array.isArray(message.content)) { return; }
 
                     message.content.forEach((model) => {
-                        console.log(model);
                         if (!typeof model === 'string') { return; }
                         let option = document.createElement('option');
                         option.text = model;

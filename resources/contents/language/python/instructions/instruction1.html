@@ -38,8 +38,7 @@
                message = "Hello!"
             </code>
         </div>
-        <!-- TODO: perform operations on data type values -->
-        <h4>Part Two: Outputs</h4>
+        <h4>Part Two: Displaying a message</h4>
         <p>
             To display your variable's value to the big black box, also known as the 
             console, you can type in the line <code>print(message)</code> after 
@@ -48,7 +47,7 @@
             <code>python3 lesson1.py</code>. This is called <b>running</b> the file. If 
             something like <code>Command not found</code> appears, you may not have 
             Python installed. You can download Python by going to <a href="https://www.python.org/downloads">this link</a>.
-            Otherwise, the box should display the line:
+            Doing this will NOT submit your code. Otherwise, the box should display the line:
         </p>
         <div>
             <code style="font-size: large;">
@@ -77,19 +76,23 @@
             name = input("What's your name? ")
         </code></div>
         <p>
-            When the Python encounters <code>input()</code>, it pauses the program and 
-            waits for the user to type something in the keyboard and press <code>Enter</code>. 
-            The string value inside the parentheses ( ) is displayed before the user enters 
-            their desired input. The <code>input()</code> then 
+            When the Python encounters <code>input(message)</code>, it:
         </p>
-        <br>
+        <ul>
+            <li>Displays the value of <code>message</code></li>
+            <li>Pauses the program</li>
+            <li>Waits for the user to enter something and press <code>Enter</code></li>
+            <li>The <code>input(message)</code> is replaced by the string value of 
+            the user's input.</li>
+            <li style="margin-inline-start: 1.1rem;">Eg.: <code>name = input("What's your name? ")</code> becomes <code>name = "Joe"</code> if the user enters <code>Joe</code></li>
+        </ul>
         <p id="task">
             <b>
-                To demonstrate your understanding of this, create a form with 2 fields 
-                that accepts 2 numbers, and output the sum of them.<br>
-                Hint: the result of `input()` is a value of `string` data type. 
+                To demonstrate your understanding of this, create a program that asks  
+                the user for 2 numbers, and displays the sum of their values.<br>
+                Hint: the result of <code>input()</code> is a value of <code>string</code> data type. 
                 You will need to convert the result of `input` to a value of `integer` 
-                data type.
+                data type and add them using the <code>+</code> sign
             </b>
         </p>
     </body>

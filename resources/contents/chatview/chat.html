@@ -116,9 +116,6 @@
             <select id="model-selection">
                 <option selected disabled>Select Model</option>
             </select>
-            <select id="params-selection">
-                <option selected disabled>Size</option>
-            </select>
         </div>
         <div id="input-area">
             <form id="input-form">
@@ -135,7 +132,6 @@
             const promptInputbox = document.getElementById('input');
             const form = document.getElementById('input-form');
             const modelSelection = document.getElementById('model-selection');
-            const paramsSelection = document.getElementById('params-selection');
             const warning = document.getElementById('warning');
 
             let loadingIndicator = null;
@@ -150,7 +146,7 @@
             }
 
             function showLoading() {
-                loadingIndicator = addMessage('AI is typing...', 'chat');
+                loadingIndicator = addMessage('Generating response...', 'chat');
             }
 
             function removeLoading() {
@@ -163,9 +159,8 @@
             function sendMessage() {
                 const prompt = promptInputbox.value.trim();
                 const model = modelSelection.value;
-                const params = paramsSelection.value;
                 warning.childNodes.forEach(child => warning.removeChild(child));
-                if (!prompt || model === 'Select Model' || params === 'Size') {
+                if (!prompt || model === 'Select Model') {
                     const child = document.createElement('p');
                     child.textContent = 'Please check if model, parameter size, and prompt is filled out.'
                     warning.appendChild(child);
@@ -178,8 +173,7 @@
                         command: 'reqChatMessage', 
                         content: {
                             userPrompt: prompt, 
-                            modelName: model,
-                            parameterSize: params
+                            modelName: model
                         }
                     }
                 );
@@ -202,6 +196,7 @@
 
             window.addEventListener('message', event => {
                 const message = event.data;
+                console.log(message);
 
                 switch (message.command) {
                     case 'chatMessageBegin': {
@@ -231,13 +226,10 @@
                             if (isValidObject) {
                                 modelInfo.forEach(modelData => {
                                     const modelOption = document.createElement('option');
-                                    const paramOption = document.createElement('option');
-
-                                    modelOption.text = modelData.modelName;
-                                    paramOption.text = modelData.parameterSize;
+                                    
+                                    modelOption.text = modelData.modelName + ':' + modelData.parameterSize;
 
                                     modelSelection.appendChild(modelOption);
-                                    paramsSelection.appendChild(paramOption);
                                 })
                             }
                         }
