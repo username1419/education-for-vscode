@@ -1,241 +1,298 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>AI Chatbot</title>
-        <style>
-            body {
-                margin: 0;
-                padding: 0;
-                font-family: var(--vscode-font-family);
-                background-color: var(--vscode-editor-background);
-                color: var(--vscode-editor-foreground);
-                display: flex;
-                flex-direction: column;
-                height: 100vh;
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI Chatbot</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: var(--vscode-font-family);
+            background-color: var(--vscode-editor-background);
+            color: var(--vscode-editor-foreground);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        select {
+            background-color: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            color: var(--vscode-dropdown-foreground);
+            border-radius: 2px;
+            height: 1.2;
+        }
+
+        select>* {
+            background-color: var(--vscode-dropdown-background);
+        }
+
+        select>*:hover {
+            background-color: var(--vscode-dropdown-background);
+            border-color: var(--vscode-dropdown-border);
+            color: var(--vscode-dropdown-foreground);
+        }
+
+        #chat {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 0.25rem 1rem;
+            border-radius: 12px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        .user {
+            align-self: flex-end;
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
+
+        .chat {
+            align-self: flex-start;
+            background-color: var(--vscode-editorHoverWidget-background);
+            color: var(--vscode-editorHoverWidget-foreground);
+        }
+
+        #warning>p {
+            color: red;
+        }
+
+        #input-area {
+            display: flex;
+            border-top: 1px solid var(--vscode-editorWidget-border);
+        }
+
+        #input-form {
+            display: flex;
+            flex: 1;
+            background-color: var(--vscode-input-background);
+            border-radius: 12px;
+        }
+
+        #input {
+            flex: 1;
+            padding: 0.5rem;
+            border: none;
+            border-radius: 12px 0px 0px 12px;
+            margin-right: 10px;
+            outline: none;
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            font-size: smaller;
+            resize: none;
+        }
+
+        #send {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            height: fit-content;
+            align-content: center;
+            align-self: center;
+            margin-right: 12px;
+        }
+
+        #send:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="chat"></div>
+    <div id="warning"></div>
+    <div id="model-selection-div">
+        <select id="model-selection">
+            <option selected disabled>Select Model</option>
+        </select>
+    </div>
+    <div id="input-area">
+        <form id="input-form">
+            <textarea type="text" id="input" placeholder="Type a message..."></textarea>
+            <button type="submit" id="send">⮚</button>
+        </form>
+    </div>
+
+    <script>
+        // Get vscode api
+        const vscode = acquireVsCodeApi();
+
+        // Variables referencing input elements in the document
+        const chat = document.getElementById('chat');
+        const promptInputbox = document.getElementById('input');
+        const form = document.getElementById('input-form');
+        const modelSelection = document.getElementById('model-selection');
+        const warning = document.getElementById('warning');
+        // References the loading indicator in the document when exists
+        let loadingIndicator = null;
+
+        /**
+         * Adds a message element to the chat UI.
+         * @param {string} text - The message text to display.
+         * @param {string} className - The CSS class to apply to the message (e.g., 'user' or 'chat').
+         * @returns {HTMLDivElement} The created message element.
+         */
+        function addMessage(text, className) {
+            // Create the element to be returned
+            const msg = document.createElement('div');
+            msg.className = `message ${className}`;
+            // Sets the text of the element
+            msg.textContent = text;
+            // Show it in the UI
+            chat.appendChild(msg);
+            // Scroll to the bottom
+            chat.scrollTop = chat.scrollHeight;
+            return msg;
+        }
+
+        /**
+         * Displays a loading indicator while waiting for the AI response.
+         */
+        function showLoading() {
+            loadingIndicator = addMessage('Generating response...', 'chat');
+        }
+
+        /**
+         * Removes the loading indicator.
+         */
+        function removeLoading() {
+            if (loadingIndicator) {
+                chat.removeChild(loadingIndicator);
+                loadingIndicator = null;
             }
+        }
 
-            select {
-                background-color: var(--vscode-dropdown-background);
-                border: 1px solid var(--vscode-dropdown-border);
-                color: var(--vscode-dropdown-foreground);
-                border-radius: 2px;
-                height: 1.2;
-            }
-
-            select > * {
-                background-color: var(--vscode-dropdown-background);
-            }
-
-            select > *:hover {
-                background-color: var(--vscode-dropdown-background);
-                border-color: var(--vscode-dropdown-border);
-                color: var(--vscode-dropdown-foreground);
-            }
-
-            #chat {
-                flex: 1;
-                overflow-y: auto;
-                padding: 1rem;
-                display: flex;
-                flex-direction: column;
-                gap: 0.5rem;
-            }
-
-            .message {
-                max-width: 80%;
-                padding: 0.25rem 1rem;
-                border-radius: 12px;
-                line-height: 1.5;
-                white-space: pre-wrap;
-            }
-
-            .user {
-                align-self: flex-end;
-                background-color: var(--vscode-button-background);
-                color: var(--vscode-button-foreground);
-            }
-
-            .chat {
-                align-self: flex-start;
-                background-color: var(--vscode-editorHoverWidget-background);
-                color: var(--vscode-editorHoverWidget-foreground);
-            }
-            
-            #warning > p {
-                color: red;
-            }
-
-            #input-area {
-                display: flex;
-                border-top: 1px solid var(--vscode-editorWidget-border);
-            }
-
-            #input-form {
-                display: flex;
-                flex: 1;
-                background-color: var(--vscode-input-background);
-                border-radius: 12px;
-            }
-            
-            #input {
-                flex: 1;
-                padding: 0.5rem;
-                border: none;
-                border-radius: 12px 0px 0px 12px;
-                margin-right: 10px;
-                outline: none;
-                background-color: var(--vscode-input-background);
-                color: var(--vscode-input-foreground);
-                font-size: smaller;
-                resize: none;
-            }
-
-            #send {
-                background-color: var(--vscode-button-background);
-                color: var(--vscode-button-foreground);
-                border: none;
-                border-radius: 12px;
-                cursor: pointer;
-                height: fit-content;
-                align-content: center;
-                align-self: center;
-                margin-right: 12px;
-            }
-
-            #send:hover {
-                background-color: var(--vscode-button-hoverBackground);
-            }
-        </style>
-    </head>
-    <body>
-        <div id="chat"></div>
-        <div id="warning"></div>
-        <div id="model-selection-div">
-            <select id="model-selection">
-                <option selected disabled>Select Model</option>
-            </select>
-        </div>
-        <div id="input-area">
-            <form id="input-form">
-                <textarea type="text" id="input" placeholder="Type a message..."></textarea>
-                <button type="submit" id="send">⮚</button>
-            </form>
-        </div>
-
-        <script>
-            // who is the motherfucker that made this piece of shit language a frontend development standard
-            const vscode = acquireVsCodeApi();
-
-            const chat = document.getElementById('chat');
-            const promptInputbox = document.getElementById('input');
-            const form = document.getElementById('input-form');
-            const modelSelection = document.getElementById('model-selection');
-            const warning = document.getElementById('warning');
-
-            let loadingIndicator = null;
-
-            function addMessage(text, className) {
-                const msg = document.createElement('div');
-                msg.className = `message ${className}`;
-                msg.textContent = text;
-                chat.appendChild(msg);
-                chat.scrollTop = chat.scrollHeight;
-                return msg;
-            }
-
-            function showLoading() {
-                loadingIndicator = addMessage('Generating response...', 'chat');
-            }
-
-            function removeLoading() {
-                if (loadingIndicator) {
-                    chat.removeChild(loadingIndicator);
-                    loadingIndicator = null;
-                }
-            }
-
-            function sendMessage() {
-                const prompt = promptInputbox.value.trim();
-                const model = modelSelection.value;
+        /**
+         * Sends a message to the extension backend, validates input,
+         * handles warnings, and updates UI with the user's prompt.
+         */
+        function sendMessage() {
+            // Prevent sending if the chatbot is still streaming its response
+            if (!streamingBotMessage) {
                 warning.childNodes.forEach(child => warning.removeChild(child));
-                if (!prompt || model === 'Select Model') {
-                    const child = document.createElement('p');
-                    child.textContent = 'Please check if model, parameter size, and prompt is filled out.'
-                    warning.appendChild(child);
-                    return;
-                }
-                addMessage(prompt, 'user');
-                showLoading();
-                vscode.postMessage(
-                    {
-                        command: 'reqChatMessage', 
-                        content: {
-                            userPrompt: prompt, 
-                            modelName: model
-                        }
-                    }
-                );
-                promptInputbox.value = '';
+                const warnMessage = document.createElement('p');
+                warnMessage.textContent = "Please wait until the reponse is complete before sending.";
+                warning.appendChild(warnMessage);
+                return;
             }
 
-            form.addEventListener('submit', event => {
+            const prompt = promptInputbox.value.trim();
+            const model = modelSelection.value;
+            // Clear any existing warnings
+            warning.childNodes.forEach(child => warning.removeChild(child));
+            // Validate the input
+            if (!prompt || model === 'Select Model') {
+                const child = document.createElement('p');
+                child.textContent = 'Please check if model, parameter size, and prompt is filled out.'
+                warning.appendChild(child);
+                return;
+            }
+
+            // Show the user's prompt in the UI
+            addMessage(prompt, 'user');
+            // Show the loading indicator
+            showLoading();
+            // Request response from the specified model using the prompt
+            vscode.postMessage(
+                {
+                    command: 'reqChatMessage',
+                    content: {
+                        userPrompt: prompt,
+                        modelName: model
+                    }
+                }
+            );
+        }
+
+
+        // Handle form submission
+        form.addEventListener('submit', event => {
+            event.preventDefault();
+            sendMessage();
+        });
+
+        // Handle Enter key press in input box
+        // Allows Enter key to submit the form
+        promptInputbox.addEventListener('keypress', event => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                // Prevent the key from creating a new line
                 event.preventDefault();
                 sendMessage();
-            });
+            }
+        });
 
-            promptInputbox.addEventListener('keypress', event => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                    sendMessage();
-                    event.stopImmediatePropagation();
+        let streamingBotMessage = null;
+
+
+        /**
+         * Handles incoming messages from the extension backend.
+         */
+        window.addEventListener('message', event => {
+            const message = event.data;
+            console.log(message);
+
+            switch (message.command) {
+                case 'chatMessageBegin': {
+                    // Create a new empty chat message element for AI response
+                    streamingBotMessage = addMessage('', 'chat');
+                    break;
                 }
-            });
-
-            let streamingBotMessage = null;
-
-            window.addEventListener('message', event => {
-                const message = event.data;
-                console.log(message);
-
-                switch (message.command) {
-                    case 'chatMessageBegin': {
-                        streamingBotMessage = addMessage('', 'chat');
-                        break;
+                case 'chatMessageAppend': {
+                    // Indicate the response is generating
+                    // Backend sends empty object when deepseek-r1 thinks
+                    // We do this to not expose the system prompt
+                    const isThinking = typeof message.content === "object";
+                    if (isThinking) {
+                        loadingIndicator.textContent = 'AI is thinking...';
+                        return;
                     }
-                    case 'chatMessageAppend': {
-                        if (typeof message.content === "object") {
-                            loadingIndicator.textContent = 'AI is thinking...';
-                            return;
-                        }
-                        removeLoading();
-                        streamingBotMessage.textContent += message.content;
-                        chat.scrollTop = chat.scrollHeight;
-                        break;
-                    }
-                    case 'chatMessageDone': {
-                        streamingBotMessage = null;
-                        break;
-                    }
-                    case 'createModelOptions': {
-                        const modelInfo = message.content;
-                        if (modelInfo instanceof Array) {
-                            const isValidObject = !!modelInfo.find(modelData => {
-                                return !(modelData.parameterSize instanceof String || modelData.modelName instanceof String);
-                            });
-                            if (isValidObject) {
-                                modelInfo.forEach(modelData => {
-                                    const modelOption = document.createElement('option');
-                                    
-                                    modelOption.text = modelData.modelName + ':' + modelData.parameterSize;
 
-                                    modelSelection.appendChild(modelOption);
-                                })
-                            }
+                    // Remove loading, append message content
+                    removeLoading();
+                    streamingBotMessage.textContent += message.content;
+                    // Scroll the the bottom
+                    chat.scrollTop = chat.scrollHeight;
+                    break;
+                }
+                case 'chatMessageDone': {
+                    // Delete the object reference so we can't access it again
+                    streamingBotMessage = null;
+                    break;
+                }
+                case 'createModelOptions': {
+                    // Populate model selection dropdown with available models
+                    const modelInfo = message.content;
+                    if (modelInfo instanceof Array) {
+                        const isValidObject = !!modelInfo.find(modelData => {
+                            return !(modelData.parameterSize instanceof String || modelData.modelName instanceof String);
+                        });
+                        if (isValidObject) {
+                            modelInfo.forEach(modelData => {
+                                const modelOption = document.createElement('option');
+
+                                modelOption.text = modelData.modelName + ':' + modelData.parameterSize;
+
+                                modelSelection.appendChild(modelOption);
+                            })
                         }
                     }
                 }
-            });
-        </script>
-    </body>
+            }
+        });
+    </script>
+</body>
+
 </html>

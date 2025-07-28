@@ -32,8 +32,12 @@
         "title": "Education for VSCode: Run Ollama Setup"
       },
       {
-        "command": "education-for-vscode.resetEducation",
-        "title": "Education for VSCode: Reset Lesson"
+        "command": "education-for-vscode.restartLesson",
+        "title": "Education for VSCode: Restart Lesson"
+      },
+      {
+        "command": "education-for-vscode.debugClearGlobalStorage",
+        "title": "Education for VSCode: (Debug) Revert to default"
       }
     ],
     "viewsContainers": {
@@ -70,12 +74,13 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src",
-    "test": "vscode-test"
+    "compile": "npm run check-types && node esbuild.js",
+    "check-types": "tsc --noEmit",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "vscode:prepublish": "npm run package",
+    "package": "npm run check-types && node esbuild.js --production"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
@@ -85,7 +90,9 @@
     "@typescript-eslint/parser": "^8.28.0",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1",
+    "esbuild": "^0.25.8",
     "eslint": "^9.23.0",
+    "npm-run-all": "^4.1.5",
     "typescript": "^5.8.2"
   },
   "dependencies": {

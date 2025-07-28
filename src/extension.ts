@@ -34,7 +34,7 @@ const fileExtension: Map<string, string> = new Map(
 );
 /** Maps the programming language to the default location of the compiler binary in a virtual environment */
 const defaultRunApplication: Map<string, string> = new Map([
-	["python", ".venv/bin/python3"]
+	["python", process.platform === 'win32' ? ".venv\\Scripts\\python.exe" : ".venv/bin/python3"]
 ]);
 /** List of possible programming languages the user can choose from */
 const langList: string[] = [];
@@ -49,12 +49,23 @@ const registeredEvents: vscode.Disposable[] = [];
 /** Miscellaneous things that are registered by the extension. Used to dispose safely after extension deactivates */
 const registeredMiscDisposables: vscode.Disposable[] = [];
 
-/** Function called when the extension activates. Registers commands and webviews, and other things */
+/** 
+ * Function called when the extension activates. Registers commands and webviews, and other things
+ * 
+ * @param context A collection of utilities private to this extension.
+ */
 export function activate(context: vscode.ExtensionContext) {
 
 	// Make sure the extension is correctly loaded
 	util.logDebug(extensionName, `Congratulations, your extension "${extensionName}" is now active!`);
 	util.logDebug(extensionName, `Extension globalState path: ${context.globalStorageUri.fsPath}`);
+	process.on("uncaughtException", err => {
+		util.logError(`Unhandled exception occured: 
+			name: ${err.name}, 
+			message: ${err.message}, 
+			cause: ${err.cause}`);
+		vscode.window.showErrorMessage(`Education for VSCode: Error encountered: ${err.name}, ${err.message}`);
+	});
 
 	// Allow other functions to access extension context
 	extensionContext = context;
@@ -136,7 +147,7 @@ export function activate(context: vscode.ExtensionContext) {
 			// Check if the workspace path is valid
 			// If not, end the session and return
 			let workspacePath: string = context.globalState.get(util.stateKeys.workspacePath, "");
-			if (!workspacePath || fs.existsSync(workspacePath)) {
+			if (!workspacePath || !fs.existsSync(workspacePath)) {
 				vscode.window.showErrorMessage("Cannot retrieve workspacePath");
 				await context.globalState.update(util.stateKeys.isStudySessionOpened, false);
 				return;
@@ -175,18 +186,33 @@ export function activate(context: vscode.ExtensionContext) {
 		extensionName + '.setupOllama',
 		async function ollamaSetupConfirm() {
 			// Warn the user about the size of the application and ask for confirmation
-			const installConfirmation = await vscode.window.showWarningMessage("Doing this will install 'ollama'(required 1GB, recommended >6GB). Do you want to continue?", 'Yes', 'No');
+			const installConfirmation = await vscode.window.showWarningMessage("Doing this will install 'ollama'(required 1GB, recommended >6GB). Do you want to continue?", 'Yes', 'I already have ollama', 'No');
+			if (installConfirmation === "No" || !installConfirmation) { return; }
+
 			if (installConfirmation === 'Yes') {
-				util.installOllama();
+				util.ChatHelper.installOllama();
 				return;
 			}
 
 			// If the user denies, ask if the user wants to set its PATH manually
 			const setPATHConfirmation = await vscode.window.showInformationMessage("Do you want to set ollama's PATH manually?", "Yes", "No");
-			if (setPATHConfirmation === 'No') {
+			if (setPATHConfirmation === 'No') { return; }
+			util.ChatHelper.setOllamaPATH(extensionContext);
+		}
+	);
+	const clearGlobalStorageRegister = vscode.commands.registerCommand(
+		extensionName + ".debugClearGlobalStorage",
+		async function clearGlobalStorage() {
+			// Warn users about the effects of the command and let them return if they didn't mean to run it
+			const confirm = await vscode.window.showWarningMessage("This will revert ALL of your progress to default. DO NOT PROCEED unless you know exactly what you are doing! Proceed?", "Yes", "No");
+			if (confirm !== 'Yes') {
 				return;
 			}
-			util.setOllamaPATH(extensionContext);
+
+			// Remove all keys used by the extension from globalState
+			for (let config in util.stateKeys) {
+				extensionContext.globalState.update(config, undefined);
+			}
 		}
 	);
 
@@ -343,9 +369,9 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 /**
- * 
+ * Let the user choose a directory and start creating the lesson environment
  */
-function startSession() {
+async function startSession() {
 	let options: vscode.OpenDialogOptions = {
 		canSelectMany: false,
 		canSelectFiles: false,
@@ -353,65 +379,82 @@ function startSession() {
 	};
 
 	// Open a directory selector
-	const selectWorkspace = async () => {
-		const writeDir = await vscode.window.showOpenDialog(options);
+	const writeDir = await vscode.window.showOpenDialog(options);
 
-		const isDirectoryNull = !(writeDir && writeDir[0]);
-		if (isDirectoryNull) { return; }
+	const isDirectoryNull = !(writeDir && writeDir[0]);
+	if (isDirectoryNull) { return; }
 
-		// Check if the selected directory is empty
-		const files = await fs.promises.readdir(writeDir[0].fsPath, null);
-		if (files.length === 0) {
+	// Check if the selected directory is empty
+	const files = await fs.promises.readdir(writeDir[0].fsPath, null);
+	if (files.length === 0) {
+		// If the selected directory is empty, let the user pick the language they want to learn from the list of options
+		const language = await vscode.window.showQuickPick(langList, { canPickMany: false });
+
+		// Sets the language the user wants
+		if (!language) { return; }
+		// Create files for the lesson
+		generateCodeFiles(language, writeDir[0]);
+
+	} else {
+		// If the selected directory is not empty, requests the user a deletion of the folder contents
+		const deletionConfirmation = await vscode.window.showWarningMessage("The directory is not empty. Delete contents? This action cannot be reversed.", {}, "No", "Yes");
+		if (deletionConfirmation !== "Yes") {
+			return;
+		} else {
+			// Delete the directory recursively
+			fs.rmSync(writeDir[0].fsPath, { recursive: true, maxRetries: 0, force: true });
+			if (fs.existsSync(writeDir[0].fsPath)) {
+				vscode.window.showErrorMessage("Cannot remove file");
+				return;
+			}
+
+			// Create a directory with the same name
+			fs.mkdirSync(writeDir[0].fsPath);
+
 			// If the selected directory is empty, let the user pick the language they want to learn from the list of options
 			const language = await vscode.window.showQuickPick(langList, { canPickMany: false });
-
 			if (!language) { return; }
+
+			// Sets the language the user wants
+			await extensionContext.globalState.update(util.stateKeys.language, language);
+			// Create files for the lesson
 			generateCodeFiles(language, writeDir[0]);
-
-		} else {
-			// If the selected directory is not empty, requests the user a deletion of the folder contents
-			const deletionConfirmation = await vscode.window.showWarningMessage("The directory is not empty. Delete contents? This action cannot be reversed.", {}, "No", "Yes");
-			if (deletionConfirmation !== "Yes") {
-				return;
-			} else {
-				fs.rmSync(writeDir[0].fsPath, { recursive: true, maxRetries: 0, force: true });
-				if (fs.existsSync(writeDir[0].fsPath)) {
-					vscode.window.showErrorMessage("Cannot remove file");
-					return;
-				}
-				fs.mkdirSync(writeDir[0].fsPath);
-
-				// If the selected directory is empty, let the user pick the language they want to learn from the list of options
-				const language = await vscode.window.showQuickPick(langList, { canPickMany: false });
-				if (!language) { return; }
-
-				await extensionContext.globalState.update(util.stateKeys.language, language);
-				generateCodeFiles(language, writeDir[0]);
-			}
 		}
-	};
-
-	selectWorkspace();
+	}
 }
 
+/**
+ * Initializes the virtual environment depending on the language. Returns `true` if successful, `false` otherwise.
+ * @param language The language of the virtual environment
+ * @param writeDir The path where the virtual environment will be created at
+ */
 function initializeVirtualEnv(language: string, writeDir: vscode.Uri): boolean {
+	// If language is python
 	if (language === "python") {
+		// Get python executable path
 		let pythonExecutableUri = util.getApplicationPath('python');
 		if (!pythonExecutableUri) {
 			pythonExecutableUri = util.getApplicationPath('python3');
+			// If python is not found, notify the user and return unsuccessful
 			if (!pythonExecutableUri) {
 				vscode.window.showErrorMessage("Python is not installed. Install python by going to www.python.org/downloads and add python to PATH.");
 				return false;
 			}
 		}
-		vscode.window.showInformationMessage("Creating Python Virtual Environment...");
+		// Notify the user
+		vscode.window.showInformationMessage("Creating Python Virtual Environment, this may take a few minutes...");
+		// Create the virtual environment
 		let output = util.execute(pythonExecutableUri.fsPath, ['-m', 'venv', '.venv'],
 			{
 				cwd: writeDir.fsPath,
-				encoding: 'utf-8' // util.execute() can only do string returns
-				// cant be bothered to write an overload for this
+				encoding: 'utf-8'
 			}
 		);
+		// Notify the user if there is an error
+		if (output.error) {
+			vscode.window.showErrorMessage(`Creating Python Virtual Environment failed. Error: ${output.stderr}`);
+			return false;
+		}
 		util.logDebug(extensionName, output);
 		return true;
 	}
@@ -419,7 +462,14 @@ function initializeVirtualEnv(language: string, writeDir: vscode.Uri): boolean {
 	return false;
 }
 
+/**
+ * Retrieves the number of lesson instruction files available for a given language.
+ * 
+ * @param language The target language used to construct the instructions directory path
+ * @returns The amount of instructions files found for the target language
+ */
 function getMaxLessons(language: string): number {
+	// Construct the instructions Uri
 	const instructionResourceUri = util.joinValidPath(
 		extensionContext.extensionUri,
 		"resources",
@@ -429,7 +479,9 @@ function getMaxLessons(language: string): number {
 		"instructions"
 	);
 
+	// Read all files in the instructions directory
 	const instructionResources = fs.readdirSync(instructionResourceUri.fsPath, { encoding: "utf-8", withFileTypes: true, recursive: false });
+	// Loop through the files and count them
 	let lessonCount = 0;
 	for (let contentIndex = 0; contentIndex < instructionResources.length; contentIndex++) {
 		lessonCount += instructionResources[contentIndex].isFile() ? 1 : 0;
@@ -438,24 +490,41 @@ function getMaxLessons(language: string): number {
 	return lessonCount;
 }
 
+/**
+ * Generates code files for the given language at the provided path.
+ * 
+ * The function does the following:
+ * - Gets the origin folder for the provided language
+ * - Creates a virtual environment based on the language
+ * - Retrieves the current lesson number and check it against the maximum lesson available
+ * - Copies the base and lesson files from the origin to the path provided
+ * - Opens the lesson file in VSCode
+ * - Replaces the workspace directory with the path provided
+ * 
+ * Returns early if creating the virtual environment fails or the max lesson is reached
+ * 
+ * @param language Target language to create lesson code files from
+ * @param writeDir The target location to create code files to
+ */
 function generateCodeFiles(language: string, writeDir: vscode.Uri) {
-	// Open the selected lesson from the path
+	// Retrieves the lesson origin directory path
 	let lessonOriginFolderUri = langUri[langList.findIndex(x => x === language)];
 
+	// Initialize the virtual environment
 	const success = initializeVirtualEnv(language, writeDir);
 	if (!success) {
 		return;
 	}
 
-	// Copy the files to the specified path
+	// Retrieve the lesson number and check if the max lesson is reached
 	const lessonNumber: number = extensionContext.globalState.get(util.stateKeys.currentLesson, 0);
 	const maxLessons = getMaxLessons(language);
 	if (lessonNumber > maxLessons) {
 		vscode.window.showErrorMessage("No more lessons to complete, please wait for more to come!");
 		return;
 	}
-	let lessonDirUri = util.joinValidPath(writeDir, "lesson" + lessonNumber + fileExtension.get(language));
 
+	// Copy the files to the specified path
 	const baseFileReadUri = util.joinValidPath(lessonOriginFolderUri, "base", "base" + fileExtension.get(language));
 	const baseFileWriteUri = util.joinValidPath(writeDir, "base" + fileExtension.get(language));
 
@@ -466,6 +535,7 @@ function generateCodeFiles(language: string, writeDir: vscode.Uri) {
 	fs.copyFileSync(lessonFileReadUri.fsPath, lessonFileWriteUri.fsPath);
 
 	// Update workspace files
+	let lessonDirUri = util.joinValidPath(writeDir, "lesson" + lessonNumber + fileExtension.get(language));
 	vscode.workspace.openTextDocument(lessonDirUri).then(async doc => {
 		const editor = vscode.window.showTextDocument(doc);
 
@@ -479,29 +549,34 @@ function generateCodeFiles(language: string, writeDir: vscode.Uri) {
 	});
 }
 
+/**
+ * Generates code files for the given language at the provided path. Does the same 
+ * thing as {@link generateCodeFiles} other than copying the base file and initialize 
+ * the virtual environment.
+ * 
+ * @param language Target language to create lesson code files from
+ * @param writeDir The target location to create code files to
+ */
 function generateLessonFiles(language: string, writeDir: vscode.Uri) {
+	// Retrieves the lesson origin directory path
 	let lessonOriginFolderUri = langUri[langList.findIndex(x => x === language)];
 
-	const success = initializeVirtualEnv(language, writeDir);
-	if (!success) {
-		return;
-	}
-
-	// Copy the files to the specified path
+	// Retrieve the lesson number and check if the max lesson is reached
 	const lessonNumber: number = extensionContext.globalState.get(util.stateKeys.currentLesson, 0);
 	const maxLessons = getMaxLessons(language);
 	if (lessonNumber > maxLessons) {
 		vscode.window.showErrorMessage("No more lessons to complete, please wait for more to come!");
 		return;
 	}
-	let lessonDirUri = util.joinValidPath(writeDir, "lesson" + lessonNumber + fileExtension.get(language));
 
+	// Copy the files to the specified path
 	const lessonFileReadUri = util.joinValidPath(lessonOriginFolderUri, "lessons", "lesson" + lessonNumber + fileExtension.get(language));
 	const lessonFileWriteUri = util.joinValidPath(writeDir, "lesson" + lessonNumber + fileExtension.get(language));
 
 	fs.copyFileSync(lessonFileReadUri.fsPath, lessonFileWriteUri.fsPath);
 
 	// Update workspace files
+	let lessonDirUri = util.joinValidPath(writeDir, "lesson" + lessonNumber + fileExtension.get(language));
 	vscode.workspace.openTextDocument(lessonDirUri).then(doc => {
 		vscode.window.showTextDocument(doc).then(async editor => {
 			await extensionContext.globalState.update(util.stateKeys.isWorkspaceLoaded, true);
@@ -511,14 +586,23 @@ function generateLessonFiles(language: string, writeDir: vscode.Uri) {
 	});
 }
 
+/**
+ * Rewrites the lesson file of the current lesson at the provided directory
+ * @param workspaceUri The path of the file's directory
+ */
 function rewriteLessonFiles(workspaceUri: vscode.Uri) {
-	const currentLesson = extensionContext.globalState.get(util.stateKeys.currentLesson, 0);
+	// Get the language
 	const language = extensionContext.globalState.get(util.stateKeys.language, "");
+
+	// Retrieve the lesson number and check if the max lesson is reached
+	const currentLesson = extensionContext.globalState.get(util.stateKeys.currentLesson, 0);
 	const maxLessons = getMaxLessons(language);
 	if (currentLesson > maxLessons) {
 		vscode.window.showErrorMessage("No more lessons to complete, please wait for more to come!");
 		return;
 	}
+
+	// Copy the files to the specified path
 	const lessonFileWriteUri = util.joinValidPath(workspaceUri, "lesson" + currentLesson + (fileExtension.get(language) || ""));
 	const lessonFileReadUri = util.joinValidPath(extensionContext.extensionUri, "resources", "contents", "language", language, "lessons", "lesson" + currentLesson + (fileExtension.get(language) || ""));
 
@@ -529,67 +613,86 @@ function rewriteLessonFiles(workspaceUri: vscode.Uri) {
 	);
 }
 
-function testSubmission(workspacePath: vscode.Uri) {
-	if (!fs.existsSync(workspacePath.fsPath)) {
-		util.logError("workspacePath does not exist");
-		return;
-	}
+/**
+ * Tests the user's lesson submission within the given workspace.
+ * 
+ * This function verifies the workspace exists and is accessible, identifies the most current lesson file,
+ * copies the corresponding test file from the language resources, executes it, and shows the result in a webview.
+ * 
+ * If the test passes, the lesson is marked complete and the next lesson is prepared. If the test fails,
+ * an error message and feedback are shown. Temporary test files are cleaned up at the end.
 
+ * @param workspacePath The path of the workspace directory containing the lesson
+ */
+function testSubmission(workspacePath: vscode.Uri) {
+	// Check if the workspace path is accessible to the process
 	try {
 		fs.accessSync(workspacePath.fsPath);
 	} catch (err) {
 		vscode.window.showErrorMessage("Cannot access workspace path");
+		return;
 	}
 
-	let codeLanguage = extensionContext.globalState.get(util.stateKeys.language, "");
-	if (!codeLanguage) {
+	// Get the programming language of the lesson
+	let language = extensionContext.globalState.get(util.stateKeys.language, "");
+	if (!language) {
 		util.logError(extensionName, "globalState codeLanguage is undefined");
 		return;
 	}
+
+	// Get the lesson number from the workspace
 	let lessonNumber = Number.MIN_VALUE;
-	let baseFilePath = "";
 	fs.readdirSync(workspacePath.fsPath).forEach((fileName) => {
-		if (fileName.startsWith("base")) {
-			baseFilePath = fileName;
-		}
 
 		if (!fileName.startsWith("lesson")) { return; }
 		let lesson = Number.parseInt(fileName.split('.')[0].split("lesson")[1]);
 		if (lesson <= lessonNumber && Number.isNaN(lesson)) { return; }
 		lessonNumber = lesson;
 	});
-	if (baseFilePath === "") {
-		vscode.window.showErrorMessage("Education for VSCode: workspace directories are currently not supported.");
-		util.logError(extensionName, "base file path is not in root workspace");
-		util.logError(extensionName, "fix this later or smth"); // TODO: fix this
+
+	// Check if the lesson number matches the one in the storage, if not, exit
+	if (lessonNumber !== extensionContext.globalState.get(util.stateKeys.currentLesson)) {
+		util.logError(extensionName, `lesson number and globalstate do not match. lesson number: ${lessonNumber}, global state ${extensionContext.globalState.get(util.stateKeys.currentLesson)}`);
+		vscode.window.showErrorMessage("Lesson numbers do not match. Exiting...");
+
+		extensionContext.globalState.update(util.stateKeys.currentLesson, 0);
+		extensionContext.globalState.update(util.stateKeys.isStudySessionOpened, false);
+		vscode.workspace.updateWorkspaceFolders(0, vscode.workspace.workspaceFolders?.length);
+	}
+
+	// Get language folder path from storage
+	const languageReadFolderUri = langUri.find(uri => uri.fsPath.endsWith(language));
+	if (languageReadFolderUri === undefined) {
+		util.logError(`language folder ${language} does not exist`);
 		return;
 	}
 
-	const languageReadFolderUri = langUri.find(uri => uri.fsPath.endsWith(codeLanguage));
-	if (languageReadFolderUri === undefined) {
-		util.logError(`language folder ${codeLanguage} does not exist`);
-		return;
-	}
-	const testFileReadUri = util.joinValidPath(languageReadFolderUri, "tests", "test" + lessonNumber + fileExtension.get(codeLanguage));
-	let testFileWriteUri = util.joinValidPath(workspacePath, "test" + fileExtension.get(codeLanguage));
+	// Get the test path from the language folder
+	const testFileReadUri = util.joinValidPath(languageReadFolderUri, "tests", "test" + lessonNumber + fileExtension.get(language));
+	let testFileWriteUri = util.joinValidPath(workspacePath, "test" + fileExtension.get(language));
+	// Copy the test path to the workspace
 	fs.copyFileSync(
 		testFileReadUri.fsPath,
 		testFileWriteUri.fsPath
 	);
 
+	// Execute the test using the specific language's compiler
+	vscode.window.showInformationMessage("Education for VSCode: Testing sumbission...");
 	let output = util.execute(
-		defaultRunApplication.get(codeLanguage) || "",
+		defaultRunApplication.get(language) || "",
 		[testFileWriteUri.fsPath],
 		{
 			cwd: workspacePath.fsPath,
 			encoding: 'utf-8'
 		}
 	);
-	util.logDebug(extensionName, output.output); // TODO: evaluate output
+	util.logDebug(extensionName, output);
 
-	const result = isTestPassed(output, codeLanguage);
+	// Evaluate the test output into a easy to understand result we can show the user
+	const result = evaluateResult(output, language);
 
 	if (result.status === ResultStatus.Pass) {
+		// If test passes, create a result window that tells the user their results
 		new ResultWebView(
 			extensionContext,
 			ResultStatus.Pass,
@@ -597,19 +700,25 @@ function testSubmission(workspacePath: vscode.Uri) {
 			result.gotInstead,
 			result.errors,
 			async function onProceed() {
+				// Get the current lesson number and verify it is not the maximum lesson the uesr can complete
 				const currentLesson = extensionContext.globalState.get(util.stateKeys.currentLesson, 0);
-				const maxLessons = getMaxLessons(codeLanguage);
+				const maxLessons = getMaxLessons(language);
 				if (currentLesson > maxLessons) {
 					vscode.window.showErrorMessage("No more lessons to complete, please wait for more to come!");
 					return;
 				}
 
+				// Increment the current lesson
 				await extensionContext.globalState.update(util.stateKeys.currentLesson, currentLesson + 1);
+				await extensionContext.globalState.update(util.stateKeys.isWorkspaceLoaded, false);
 
-				generateCodeFiles(codeLanguage, workspacePath);
+				// Close all editors and create the files required for the next lesson
+				vscode.commands.executeCommand("workbench.actions.closeAllEditors");
+				generateLessonFiles(language, workspacePath);
 			}
-		).initializeWebview();
+		).initializeWebview(); // Render the window
 	} else {
+		// If the test fails, detail the expected results and what the program outputs
 		new ResultWebView(
 			extensionContext,
 			ResultStatus.Fail,
@@ -619,30 +728,53 @@ function testSubmission(workspacePath: vscode.Uri) {
 			function onProceed() {
 				vscode.window.showErrorMessage("You shouldn't be able to do that");
 			}
-		).initializeWebview();
+		).initializeWebview(); // Render the window
 	}
 
+	// Remove the test files
 	fs.rmSync(testFileWriteUri.fsPath);
 }
 
+/**
+ * Container class for properties required for initialization of {@link	ResultWebView}
+ */
 class Result {
 	constructor(
+		/** The status of the result. Eg. Pass, Fail */
 		public readonly status: string,
+		/** The output the program was expected to produce */
 		public readonly expectedOutput: string,
+		/** The output the program did produce */
 		public readonly gotInstead: string,
+		/** The errors given from the compiler */
 		public readonly errors: string = ''
 	) { }
 }
 
-function isTestPassed(testResult: SpawnSyncReturns<String>, codeLanguage: string): Result {
+/**
+ * Evaluates the result and formats them into expected values, actual output gotten, 
+ * and the status of the result, depending on the language.
+ * 
+ * @param testResult Output from the command line after running the test
+ * @param codeLanguage The language of the tested program
+ * @returns A object containing the expected value, the actual output gotten, and whether the test passed or failed.
+ */
+function evaluateResult(testResult: SpawnSyncReturns<String>, codeLanguage: string): Result {
+
+	// Splits standard error by line into an array for easy parsing
 	const errorLines = (testResult.stderr || "").split('\n');
-	const outputLines = (testResult.output || [] as string[]).map(s => (s || '').trim());
+	// Splits output(stdout & stderr) by line into an array and remove all trailing & leading whitespace and newlines
+	const outputLines = (testResult.output || [] as string[])
+		.map(s => (s || '').trim())
+		.filter(s => s);
 	let expectedOutput = '';
 	let gotInstead = '';
 	let errors = '';
 
+	// If the last line contains "OK", the test passes
+	// TODO: think of a better way to do this
 	const outputStatus = outputLines[outputLines.length - 1] || "";
-	if (outputStatus.includes("OK") && !testResult.stderr) { // TODO: think of a better way to do this
+	if (outputStatus.includes("OK") && !testResult.error) {
 		return new Result(
 			ResultStatus.Pass,
 			expectedOutput,
@@ -650,19 +782,45 @@ function isTestPassed(testResult: SpawnSyncReturns<String>, codeLanguage: string
 		);
 	}
 
+	// Evaluate the error for python code
 	if (codeLanguage === 'python') {
+		// Find lines in standard error that contains the error details
 		errors = errorLines.filter(s => s.includes("AssertionError")).map(s => s.replace("AssertionError: ", "")).join('\n');
+		// Find the line which contains the error
 		const error = errorLines.find(s => s.includes("AssertionError")) || "";
+		// If the assertion error details cannot be found, a different error is causing the program to quit early
 		if (error === "") {
-			util.logError(extensionName, "cannot find error");
+			// In that case, we log the error and show the user what went wrong
+			util.logError(extensionName, `cannot find error, output: ${testResult}`);
 			return new Result(
 				ResultStatus.Error,
-				'cannot find error',
-				''
+				'',
+				'',
+				errorLines.join('\n')
 			);
 		}
-		expectedOutput = error.split("'")[1];
-		gotInstead = error.split("'")[3];
+
+		// 2 assertion messages are formatted
+		// There are more that can be displayed but these are the only ones displayed in the provided tests
+		if (error.includes("'")) {
+			// eg. error = "AssertionError: 'expected_output' not found in 'actual_output'"
+			// Split the error message into chunks at the ' characters
+			const chunks = error.split("'"); // -> ["AssertionError: ", "expected_output", " not found in ", "actual_output", ""]
+			// Get the expected and actual output values from the split chunks
+			expectedOutput = chunks[1]; // -> "expected_output"
+			gotInstead = chunks[3]; // -> "actual_output"
+		} else if (error.includes("=!")) {
+			// eg. error = "AssertionError: expected_output != actual_output"
+			// Remove the error name from the error details
+			error.replace("AssertionError: ", ""); // -> "expected_output != actual_output"
+			// Split the error message into chunks at the " != "
+			const chunks = error.split(" =! "); // -> ["expected_output", "actual_output"]
+			// Get the expected and actual output values from the split chunks
+			expectedOutput = chunks[0];
+			expectedOutput = chunks[1];
+		}
+
+		// Return a Result object containing information about the test that the program failed at
 		return new Result(
 			ResultStatus.Fail,
 			expectedOutput,
@@ -671,6 +829,7 @@ function isTestPassed(testResult: SpawnSyncReturns<String>, codeLanguage: string
 		);
 	}
 
+	// Return an error if the language is not able to be evaluated
 	return new Result(
 		ResultStatus.Error,
 		`cannot find language handler for ${codeLanguage}`,
@@ -678,22 +837,33 @@ function isTestPassed(testResult: SpawnSyncReturns<String>, codeLanguage: string
 	);
 }
 
+
+/**
+ * Disposes of commands, events, webviews, and more.
+ * 
+ * Created to use before {@link vscode.workspace.updateWorkspaceFolders()} to not cause a memory leak
+ */
 function disposeDisposables() {
 	util.logInfo(extensionName, "Cleaning up resources...");
-	registeredCommands.forEach((v, i, a) => {
-		v.dispose();
+	registeredCommands.forEach(command => {
+		command.dispose();
 	});
 
-	registeredEvents.forEach((v, i, a) => {
-		v.dispose();
+	registeredEvents.forEach(event => {
+		event.dispose();
 	});
 
-	registeredMiscDisposables.forEach((v, i, a) => {
-		v.dispose();
+	registeredMiscDisposables.forEach(disposable => {
+		disposable.dispose();
 	});
 }
 
+/**
+ * Called when this function deactivates. 
+ */
 export function deactivate() {
+	// Disposes all disposable objects
 	disposeDisposables();
+	// Unloads the workspace
 	extensionContext.globalState.update(util.stateKeys.isWorkspaceLoaded, false);
 }

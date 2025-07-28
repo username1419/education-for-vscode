@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Lesson 2</title>
+        <style>
+            * {
+                font-size: medium;
+                line-height: 1.35;
+            }
+
+            pre {
+                background-color: var(--vscode-textPreformat-background);
+                color: var(--vscode-textPreformat-foreground);
+                border-radius: 4px;
+                padding: 10px;
+            }
+            pre > code {
+                background-color: transparent;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>
+            Lesson 2: Functions
+        </h1>
+        <hr>
+        <p>
+            <b>Functions</b> are resuable sets of instructions that the computer 
+            follows to complete a task to produce a result. Sometimes, you may provide 
+            the computer with an input to give it information on what you want it to create.<br>
+            A function in Python is created like this: 
+        </p>
+        <pre><code>def my_function():
+    print("Running my_function")</code></pre>
+        <p>
+            The combination of letters after <code>def</code> specifies the name of 
+            the function, and the lines which have indentation after <code>def</code> 
+            specifies the instructions that the function does when called.
+            In this example, the function is named <code>my_function</code>, and running 
+            it makes the computer execute <code>print("Running my_function")</code>.
+            To make the computer run the function, also known as <b>calling</b> it, below the 
+            function creation we write:
+        </p>
+        <pre><code>my_function()</code></pre>
+        <p>
+            Running the file like this will make the computer display:
+        </p>
+        <pre><code>Running my_function</code></pre>
+        <p>
+            Functions can have 1 or more inputs, called arguments. This can be used 
+            inside the function like so:
+        </p>
+        <pre><code>def product(num1, num2):
+    print(num1 * num2)</code></pre>
+        <p>
+            The function takes 2 arguments: <code>num1</code> and <code>num2</code>. 
+            Using this function, calculating the product of 3 and 10 is as simple as 
+            writing:
+        </p>
+        <pre><code>product(10, 3)</code></pre>
+        <p>
+            Running this displays:
+        </p>
+        <pre><code>30</code></pre>
+        <p>
+            The <code>return</code> keyword tells the computer to stop the program at 
+            that point in the function and <b>return</b> to the function call and 
+            replace the function with the return value. For example, rewriting 
+            <code>product(num1, num2)</code>:
+        </p>
+        <pre><code>def product(num1, num2):
+    return num1 * num2</code></pre>
+        <p>
+            This means that calling <code>product(10, 3)</code> no longer displays <code>30</code>: 
+        </p>
+        <pre><code>
+</code></pre>
+        <p>
+            However, this also means that we can use this to assign a variable the result of the function call:
+        </p>
+        <pre><code>result = product(10, 3)
+print(result / 2)</code></pre>
+        <p>
+            Doing this will output:
+        </p>
+        <pre><code>15</code></pre>
+        <p>
+            It is recommended to copy the code in the instructions and modify it to 
+            your liking to properly understand the subject.
+        </p>
+        <p id="task">
+            <b>
+                You are tasked to create the function <code>calculate_pyramid_volume(width, depth, height)</code>
+                to calculate the volume of a pyramid of rectangular base of size width 
+                × depth × height. The function must return the volume of the pyramid using the 
+                formula <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mfrac><mn>1</mn><mn>3</mn></mfrac><mo>×</mo><mi>w</mi><mi>i</mi><mi>d</mi><mi>t</mi><mi>h</mi><mo>×</mo><mi>d</mi><mi>e</mi><mi>p</mi><mi>t</mi><mi>h</mi><mo>×</mo><mi>h</mi><mi>e</mi><mi>i</mi><mi>g</mi><mi>h</mi><mi>t</mi></mrow><annotation encoding="application/x-tex">\frac{1}{3}\times width\times depth\times height</annotation></semantics></math>
+                
+            </b>
+        </p>
+
+    </body>
+</html>

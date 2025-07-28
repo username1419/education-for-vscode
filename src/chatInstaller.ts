@@ -4,13 +4,23 @@ import * as fs from 'fs';
 import si from 'systeminformation';
 import * as cheerio from 'cheerio';
 
+/**
+ * Provider to create user interface to interact with ollama to download large language models. See {@link vscode.WebviewViewProvider}
+ */
 export class ChatModelInstaller implements vscode.WebviewViewProvider {
+    /** The path to the running extension's file contents. Used to setup `webviewView`. */
     private readonly extensionUri;
+    /** The list of models the user can download. */
     private modelInfo: ModelInfo[] = [];
+
+    /**
+     * @param extensionContext A collection of utilities private to the running extension
+     */
     constructor(private readonly extensionContext: vscode.ExtensionContext) {
         this.extensionUri = extensionContext.extensionUri;
     }
 
+    // Resolves a webviewView. Ran when the webviewView's contents need to be set up.
     resolveWebviewView(webviewView: vscode.WebviewView, context: vscode.WebviewViewResolveContext, token: vscode.CancellationToken) {
         webviewView.webview.options = {
             enableScripts: true,
@@ -29,7 +39,14 @@ export class ChatModelInstaller implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage(m => this.handleWebviewRequest(m, webviewView));
     }
 
-    handleWebviewRequest(message: any, webviewView: vscode.WebviewView) {
+    /**
+     * Handles messages sent by the webviewView contents. 
+     * 
+     * @param message The message sent by the webviewView contents
+     * @param webviewView The webviewView created by this provider. Used to send messages to the webviewView contents.
+     */
+    private handleWebviewRequest(message: any, webviewView: vscode.WebviewView) {
+
         if (typeof message.command !== 'string') { return; }
         switch (message.command) {
             case 'installModel': {
@@ -38,20 +55,12 @@ export class ChatModelInstaller implements vscode.WebviewViewProvider {
                     return;
                 }
                 if (!(typeof message.params === 'string')) {
-                    util.logError(`wrong message content: expected 'string' instead of ${typeof message.params}`);
+                    util.logError(`wrong message params: expected 'string' instead of ${typeof message.params}`);
                     return;
                 }
 
-                let filePath: string = this.extensionContext.globalState.get(util.stateKeys.ollamaPath, '') === '' ?
-                    util.getApplicationPath("ollama")?.fsPath || '' : this.extensionContext.globalState.get(util.stateKeys.ollamaPath, '');
-
-                if (this.extensionContext.globalState.get(util.stateKeys.ollamaPath, '')) {
-                    if (filePath === '') {
-                        vscode.window.showErrorMessage("Ollama not found. Go to Command Palette(Ctrl+Shift+P) > Education for VSCode: Run Ollama Setup");
-                        return;
-                    }
-                    this.extensionContext.globalState.update(util.stateKeys.ollamaPath, filePath);
-                }
+                let ollamaPath: string = util.ChatHelper.getOllamaPath(this.extensionContext.globalState);
+                if (!ollamaPath) { return; }
 
                 if (!this.extensionContext.globalState.get(util.stateKeys.isOllamaInstalled)) {
                     this.extensionContext.globalState.update(util.stateKeys.isOllamaInstalled, true);
@@ -64,11 +73,10 @@ export class ChatModelInstaller implements vscode.WebviewViewProvider {
                 const model = message.model;
                 const params = message.params;
                 const terminal = vscode.window.createTerminal("Model Installer");
-                const ollamaPath = this.extensionContext.globalState.get(util.stateKeys.ollamaPath);
-                if (!(ollamaPath instanceof vscode.Uri)) {
+                if (!(typeof ollamaPath === 'string')) {
                     return;
                 }
-                terminal.sendText(`${ollamaPath.fsPath} pull ${model}:${params}`);
+                terminal.sendText(`${ollamaPath} pull ${model}:${params}`);
                 terminal.show();
                 break;
             }
@@ -122,8 +130,8 @@ export class ChatModelInstaller implements vscode.WebviewViewProvider {
                     if (requiredRAM >= currentRAM) {
                         warning += `You don't have enough RAM to run this model.\n`;
                     }
-                    webviewView.webview.postMessage({command: 'setWarningMessage', content: warning});
-                
+                    webviewView.webview.postMessage({ command: 'setWarningMessage', content: warning });
+
                 };
 
                 checkModelRequirements();
@@ -140,19 +148,19 @@ export class ChatModelInstaller implements vscode.WebviewViewProvider {
      * Fetches the total VRAM of the running machine
      * @returns The total VRAM of the running machine in bytes
      */
-    getMachineVRAM(): number {
+    private getMachineVRAM(): number {
         let vram = 0;
         switch (process.platform) {
             case 'linux': {
                 // no, i will not implement this for wayland(at least for now)
-                const vramStr = ((util.execute('glxinfo', ['-B'], {encoding: 'utf-8'}) // get graphics info
+                const vramStr = ((util.execute('glxinfo', ['-B'], { encoding: 'utf-8' }) // get graphics info
                     .stdout || "").split('\n').find(s => s.includes("Video memory")) || '') // parse to get video memory
                     .trim().split(' ')[2]; // parse again to get video memory amount
-                vram = Number.parseInt(vramStr.split(/[^0-9]/)[0]) * 1024**2;
+                vram = Number.parseInt(vramStr.split(/[^0-9]/)[0]) * 1024 ** 2;
                 break;
             }
             case 'win32': {
-                const vramStr = util.execute('powershell', ['"(Get-WmiObject Win32_VideoController).AdapterRAM"'], {encoding: 'utf-8'});
+                const vramStr = util.execute('powershell', ['"(Get-WmiObject Win32_VideoController).AdapterRAM"'], { encoding: 'utf-8' });
                 (vramStr.stdout || '').split('\n').forEach(v => vram += Number.parseInt(v));
                 break;
             }
@@ -160,10 +168,10 @@ export class ChatModelInstaller implements vscode.WebviewViewProvider {
                 break;
             }
         }
-    
+
         return vram;
     }
-    
+
 }
 
 /**
@@ -195,7 +203,7 @@ function getOllamaModelData(model: string): ModelInfo[] {
 
     vscode.window.showInformationMessage("Fetching model parameters...");
 
-    const request = util.execute('curl.exe' , ['-Ls', `https://ollama.com/library/${model}/tags`], { encoding: 'utf-8' });
+    const request = util.execute('curl.exe', ['-Ls', `https://ollama.com/library/${model}/tags`], { encoding: 'utf-8' });
     if (typeof request.stdout !== 'string') {
         util.logError('stdout wrong type');
         return [ModelInfo.null];
@@ -213,7 +221,7 @@ function getOllamaModelData(model: string): ModelInfo[] {
             // idk why they made it like this they just do
         ]
     });
-    
+
     modelInfo.size = modelInfo.size.filter((_, index) => index % 2 === 0);
 
     const output: ModelInfo[] = [];
@@ -224,7 +232,7 @@ function getOllamaModelData(model: string): ModelInfo[] {
 
         const modelName = identifier.split(':')[0];
         const quantization = identifierParts[identifierParts.length - 1];
-        const quantizationSize = Number.isNaN(Number.parseInt(quantization.split('_')[0])) ? 
+        const quantizationSize = Number.isNaN(Number.parseInt(quantization.split('_')[0])) ?
             4 : Number.parseInt(quantization.split('_')[0]);
 
         const parameterSize = identifierParts[0]; // TODO: change this

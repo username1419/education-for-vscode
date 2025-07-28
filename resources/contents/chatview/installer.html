@@ -49,22 +49,32 @@
     <div class="warning"></div>
     <button onclick="onInstall()">Install</button>
     <script>
+        /** 
+         * VS Code WebView API reference for message passing between extension and webview.
+         */
         const vscode = acquireVsCodeApi();
 
+        /**
+         * Event listener for messages sent from the VS Code extension backend.
+         */
         window.addEventListener('message', event => {
             const message = event.data;
-            console.log(message);
+            console.log(message); // Log the received message for debugging
 
             switch (message.command) {
                 case 'createModelOptions': {
+                    // Get the model selection element
                     let modelSelection = document.getElementById('model-selection');
+                    // Clear all options except placeholder
                     modelSelection.childNodes.forEach((child, index) => {
                         if (index === 1) { return; }
                         modelSelection.removeChild(child);
                     });
 
+                    // Validate the message content
                     if (!Array.isArray(message.content)) { return; }
 
+                    // Add each model name as an option in the dropdown
                     message.content.forEach((model) => {
                         if (!typeof model === 'string') { return; }
                         let option = document.createElement('option');
@@ -74,14 +84,18 @@
                     break;
                 }
                 case 'createParamsOptions': {
+                    // Get the parameters selection element
                     let paramsSelection = document.getElementById('params-selection');
+                    // Clear all options except placeholder
                     paramsSelection.childNodes.forEach((child, index) => {
                         if (index === 1) { return; }
                         paramsSelection.removeChild(child);
                     });
 
+                    // Validate the message content
                     if (!Array.isArray(message.content)) { return; }
 
+                    // Add each parameter size as an option in the dropdown
                     message.content.forEach((modelInfo) => {
                         if (!typeof modelInfo.parameterSize === 'string') { return; }
                         let option = document.createElement('option');
@@ -92,7 +106,14 @@
                 }
                 case 'setWarningMessage': {
                     if (!(typeof message.content === "string")) { return; }
+                    // Clear any existing warning messages
                     const warning = document.getElementsByClassName('warning')[0];
+                    warning.childNodes.forEach((v, i) => {
+                        warning.removeChild(v);
+                    });
+
+                    // Add each line of the warning message as a paragraph element
+                    // This is done to retain line breaks
                     message.content.split('\n').forEach(v => {
                         const textNode = document.createElement('p');
                         textNode.textContent = v;
@@ -101,11 +122,16 @@
                     break;
                 }
                 default:
+                    // Handle unknown commands
                     console.log(`command not recognized: ${message.command}`);
                     break;
             }
         });
 
+        /**
+         * Handles the event when a model is selected from the dropdown.
+         * Sends a message to the extension to fetch corresponding parameter options based on the model selected.
+         */
         function onModelSelect() {
             vscode.postMessage({
                 command: 'setParamsReq',
@@ -113,6 +139,10 @@
             })
         }
 
+        /**
+         * Handles the event when a parameter size is selected.
+         * Sends a message to the extension to validate the selection.
+         */
         function onParamSelect() {
             vscode.postMessage({
                 command: 'validateParamsReq',
@@ -120,9 +150,14 @@
             })
         }
 
+        /**
+         * Triggered when the user clicks the install button.
+         * Sends selected model and parameter data to the extension to install the model.
+         */
         function onInstall() {
             const modelSelect = document.getElementById("model-selection");
             const paramSelect = document.getElementById("params-selection");
+            // Check if both dropdowns have a valid selection
             if (modelSelect.selectedIndex <= 0 || paramSelect.selectedIndex <= 0) { return; }
 
             vscode.postMessage({

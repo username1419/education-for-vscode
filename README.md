@@ -1,5 +1,7 @@
 # education-for-vscode
 
+there may be a lot of unnecessary comments bc this is a school project
+
 ## Features
 
 at least 2 lessons built in

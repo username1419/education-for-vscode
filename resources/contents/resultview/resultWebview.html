@@ -30,7 +30,7 @@
                 color: var(--vscode-button-foreground);
                 align-content: center;
                 align-self: center;
-                width: 2vw;
+                width: 20vw;
             }
 
             #proceed:hover {
@@ -38,7 +38,6 @@
             }
         </style>
     </head>
-    <!-- TODO: the code blocks are broken -->
     <body style="font-size: medium; line-height: 1.35;">
         <h1 id="status">
             
@@ -61,18 +60,18 @@
                 <b>
                     Expected:
                 </b>
-            </p><br>
+            </p>
             <div class="code-div">
                 <pre class="code-pre">
                     <code id="expected">
                         
                     </code>
                 </pre>
-            </div>
+            </div><br>
             <div class="code-div">
                 <pre class="code-pre">
                     <code id="errors">
-
+                        
                     </code>
                 </pre>
             </div>
@@ -92,6 +91,7 @@
 
                 switch (message.command) {
                     case "postResults": {
+                        // Validate the display properties
                         let status = message.content.status;
                         let expectedOutput = message.content.expected;
                         let output = message.content.output;
@@ -101,9 +101,10 @@
                         if (!output instanceof String) { return; }
                         if (!errors instanceof String) { return; }
 
+                        // Show specific details if the test passes or fails
                         if (status === 'pass') {
                             let button = document.createElement('button');
-                            button.onclick = e => { // TODO: button has wrong dimensions
+                            button.onclick = e => {
                                 vscode.postMessage({
                                     command: 'postLessonProceed'
                                 });
@@ -123,6 +124,7 @@
                             outputLog.attributeStyleMap.set("color", "red");
                         }
 
+                        // Displays the test result properties
                         outputLog.textContent = output;
                         expectedLog.textContent = expectedOutput;
                         errorsLog.textContent = errors;

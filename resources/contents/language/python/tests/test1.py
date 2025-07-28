@@ -7,7 +7,7 @@ import importlib
 
 class TestMyScript(unittest.TestCase):
 
-    def test_main_output(self, mock_stdout: StringIO, mock_input: Any) -> None:
+    def test_main_output(self) -> None:
         test_cases = [
             (["1", "2"], "3"),
             (["6", "4"], "10"),
