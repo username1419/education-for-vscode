@@ -305,6 +305,17 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.workspace.openTextDocument(lessonFileUri).then(async doc => {
 			const editor = await vscode.window.showTextDocument(doc);
 
+			// Split the workspace window and move the instruction panel to the right
+			vscode.commands.executeCommand("workbench.action.splitEditorToRightGroup");
+			
+			// Create the absolute path of the instructions content using the extension uri, the programming language, and the lesson number
+			const instructionFileUri = util.joinValidPath(context.extensionUri, "resources", "contents", "language", language, "instructions", `instruction${lessonNumber}.html`);
+			
+			// Check if the file exists and dont proceed if its not
+			if (!fs.existsSync(instructionFileUri.fsPath)) {
+				return;
+			}
+			
 			// Open the instructions panel
 			let instructionsView = vscode.window.createWebviewPanel(
 				"instructions",
@@ -315,8 +326,6 @@ export function activate(context: vscode.ExtensionContext) {
 			// Split the workspace window and move the instruction panel to the right
 			vscode.commands.executeCommand("workbench.action.splitEditorToRightGroup");
 
-			// Create the absolute path of the instructions content using the extension uri, the programming language, and the lesson number
-			const instructionFileUri = util.joinValidPath(context.extensionUri, "resources", "contents", "language", language, "instructions", `instruction${lessonNumber}.html`);
 			// Read the contents of the instructions file
 			let instructionsContent = fs.readFileSync(instructionFileUri.fsPath, { encoding: "utf-8" });
 
@@ -352,6 +361,22 @@ export function activate(context: vscode.ExtensionContext) {
 			);
 			registeredMiscDisposables.push(chatRegister);
 		});
+	} else {
+		// Register the large language model installer
+		const installerRegister = vscode.window.registerWebviewViewProvider(
+			util.modelInstallerViewId,
+			new ChatModelInstallerView(extensionContext),
+			{ webviewOptions: { retainContextWhenHidden: true } }
+		);
+		registeredMiscDisposables.push(installerRegister);
+
+		// Register the chat register with the markdown instructions
+		const chatRegister = vscode.window.registerWebviewViewProvider(
+			util.chatViewId,
+			new ChatModelView(extensionContext, ''),
+			{ webviewOptions: { retainContextWhenHidden: false } }
+		);
+		registeredMiscDisposables.push(chatRegister);
 	}
 
 	// Log the values in persistent storage used by the extension
@@ -493,7 +518,7 @@ function getMaxLessons(language: string): number {
 		lessonCount += instructionResources[contentIndex].isFile() ? 1 : 0;
 	}
 
-	return lessonCount;
+	return lessonCount - 1; // lesson numbers are 0 indexed
 }
 
 /**
@@ -719,7 +744,7 @@ function testSubmission(workspacePath: vscode.Uri) {
 				await extensionContext.globalState.update(util.stateKeys.isWorkspaceLoaded, false);
 
 				// Close all editors and create the files required for the next lesson
-				await vscode.commands.executeCommand("workbench.actions.closeAllEditors");
+				await vscode.commands.executeCommand("workbench.action.closeAllEditors");
 				generateLessonFiles(language, workspacePath);
 			}
 		).initializeWebview(); // Render the window

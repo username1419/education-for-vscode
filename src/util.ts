@@ -102,9 +102,12 @@ export function getApplicationPath(name: string, fromPath: vscode.Uri | undefine
 		// Iterate over each item in the directory
 		for (let i = 0, len = directoryContents.length; i < len; i++) {
 			const filePath = joinValidPath(startingDirectory, directoryContents[i].name);
+
+			// Some files are weird and can't be seen by the program
+			if (!fs.existsSync(filePath.fsPath)) { continue; }
 			
 			// If the item is a file, check if it matches the target name
-			if (directoryContents[i].isFile()) {
+			if (fs.statSync(filePath.fsPath).isFile()) {
 				const doesFileNameMatch = directoryContents[i].name === name || directoryContents[i].name === name + ".exe";
 				if (doesFileNameMatch) { return filePath; } // Return immediately if a match is found
 				else { continue; }
@@ -146,14 +149,18 @@ export function getApplicationPath(name: string, fromPath: vscode.Uri | undefine
 
 	// Fallback to search each directory in the PATH variable
 	let out: vscode.Uri | undefined = undefined;
-	const cmdout = execute('echo', [process.platform === 'linux' ? '$PATH' : '%PATH%'], { encoding: 'utf-8' });
-
-	const PATH = cmdout.stdout;
+	const PATH: string | undefined = process.env.PATH;
 	if (!(typeof PATH === 'string')) { return; }
 	// Split the PATH variable into individual directories
 	const paths = PATH.split(":");
-	// Search each directory in PATH for a matching file
-	for (let searchDirectory in paths) {
+	// Search each directory in PATH for a matching file	
+	for (let searchDirectory of paths) {
+		if (!fs.existsSync(searchDirectory)) { return; }
+		// Check if the path is a directory, if not skip
+		if (fs.statSync(searchDirectory).isFile()) {
+			continue;
+		}
+
 		const subDirectories = fs.readdirSync(searchDirectory, {withFileTypes: true});
 		out = searchApplicationInDirectory(vscode.Uri.file(searchDirectory), subDirectories);
 		if (out !== undefined) { break; }
