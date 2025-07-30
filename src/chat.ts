@@ -84,6 +84,10 @@ export class Chat implements vscode.WebviewViewProvider {
 
     // Resolves a webviewView. Ran when the webviewView's contents need to be set up.
     async resolveWebviewView(webviewView: vscode.WebviewView, context: vscode.WebviewViewResolveContext, token: vscode.CancellationToken) {
+        // Default to show this if the instructions are not provided
+        if (!this.instructions) {
+            webviewView.webview.html = '<html><body><p>Start the session to run the chatbot</p></body></html>';
+        }
 
         // Enable scripts, forms, and restrict the access of the webviewView contents to the extension resources
         webviewView.webview.options = {
