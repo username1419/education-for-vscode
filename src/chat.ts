@@ -131,7 +131,7 @@ export class Chat implements vscode.WebviewViewProvider {
      * @param message The message sent by the webviewView contents
      * @param webviewView The webviewView created by this provider. Used to send messages to the webviewView contents.
      */
-    private handleWebviewRequest(message: any, webviewView: vscode.WebviewView) {
+    private async handleWebviewRequest(message: any, webviewView: vscode.WebviewView) {
         // Vaildate the message command
         if (typeof message.command !== 'string') { return; }
         // Check if the message command matches the supported commands
@@ -202,6 +202,28 @@ export class Chat implements vscode.WebviewViewProvider {
                     webviewView.webview.postMessage({ command: 'chatMessageAppend', content: err });
                     webviewView.webview.postMessage({ command: 'chatMessageDone' });
                 }
+                break;
+            }
+
+            case 'reqKnownModels': {
+                // Request a list of models installed on the local machine from the ollama API
+                const reqModels = await this.ollamaAPI.list();
+                reqModels.models.forEach(model => {
+                    // For each model, add it to our list of models if it isnt already present
+                    // Doing this prevents having to send requests to the API every time we want to access it (which we dont, but maybe in the future)
+                    const modelData = model.name.split(":");
+                    const modelInfoMatches = !!this.modelInfo.find(v => v.modelName === modelData[0] && v.parameterSize === modelData[1]);
+
+                    if (modelInfoMatches) {
+                        return;
+                    }
+                    this.modelInfo.push(new util.Model(modelData[0], modelData[1]));
+                });
+                // Send a message to the webviewView contents to create the options to select the models found
+                webviewView.webview.postMessage({
+                    command: 'createModelOptions',
+                    content: this.modelInfo
+                });
                 break;
             }
 
