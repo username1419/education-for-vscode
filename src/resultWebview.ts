@@ -24,7 +24,6 @@ export class ResultWebView {
      * @param errors Any errors to be shown.
      * @param onProceed Callback to invoke when the user clicks the "Proceed" button.
      */
-
     constructor(
         private readonly extensionContext: vscode.ExtensionContext, 
         private readonly status: ResultStatus,

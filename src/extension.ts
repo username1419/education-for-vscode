@@ -67,6 +67,12 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.window.showErrorMessage(`Education for VSCode: Error encountered: ${err.name}, ${err.message}`);
 	});
 
+	process.on("unhandledRejection", (reason, promise) => {
+		util.logError(`Unhandled exception occured: 
+			reason: ${reason}`);
+		vscode.window.showErrorMessage(`Education for VSCode: Error encountered: ${reason}`);
+	});
+
 	// Allow other functions to access extension context
 	extensionContext = context;
 
@@ -677,7 +683,7 @@ function testSubmission(workspacePath: vscode.Uri) {
 	);
 
 	// Execute the test using the specific language's compiler
-	vscode.window.showInformationMessage("Education for VSCode: Testing sumbission...");
+	vscode.window.showInformationMessage("Education for VSCode: Testing submission...");
 	let output = util.execute(
 		defaultRunApplication.get(language) || "",
 		[testFileWriteUri.fsPath],
@@ -713,7 +719,7 @@ function testSubmission(workspacePath: vscode.Uri) {
 				await extensionContext.globalState.update(util.stateKeys.isWorkspaceLoaded, false);
 
 				// Close all editors and create the files required for the next lesson
-				vscode.commands.executeCommand("workbench.actions.closeAllEditors");
+				await vscode.commands.executeCommand("workbench.actions.closeAllEditors");
 				generateLessonFiles(language, workspacePath);
 			}
 		).initializeWebview(); // Render the window
