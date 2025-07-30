@@ -118,6 +118,7 @@
         <select id="model-selection">
             <option selected disabled>Select Model</option>
         </select>
+        <button onclick="requestKnownModels()">Refresh known models</button>
     </div>
     <div id="input-area">
         <form id="input-form">
@@ -138,6 +139,15 @@
         const warning = document.getElementById('warning');
         // References the loading indicator in the document when exists
         let loadingIndicator = null;
+
+        /**
+         * Requests the extension for known ollama models on the machine
+         */
+        function requestKnownModels() {
+            vscode.postMessage(
+                { command: 'reqKnownModels',}
+            )
+        }
 
         /**
          * Adds a message element to the chat UI.
@@ -181,7 +191,7 @@
          */
         function sendMessage() {
             // Prevent sending if the chatbot is still streaming its response
-            if (!streamingBotMessage) {
+            if (streamingBotMessage) {
                 warning.childNodes.forEach(child => warning.removeChild(child));
                 const warnMessage = document.createElement('p');
                 warnMessage.textContent = "Please wait until the reponse is complete before sending.";
