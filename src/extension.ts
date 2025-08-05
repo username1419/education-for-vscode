@@ -210,7 +210,7 @@ export function activate(context: vscode.ExtensionContext) {
 		extensionName + ".debugClearGlobalStorage",
 		async function clearGlobalStorage() {
 			// Warn users about the effects of the command and let them return if they didn't mean to run it
-			const confirm = await vscode.window.showWarningMessage("This will revert ALL of your progress to default. DO NOT PROCEED unless you know exactly what you are doing! Proceed?", "Yes", "No");
+			const confirm = await vscode.window.showWarningMessage("This will revert ALL of your progress to default. DO NOT PROCEED unless you know exactly what you are doing! Proceed?", "No", "Yes");
 			if (confirm !== 'Yes') {
 				return;
 			}
@@ -576,6 +576,7 @@ function generateCodeFiles(language: string, writeDir: vscode.Uri) {
 		await extensionContext.globalState.update(util.stateKeys.isStudySessionOpened, true);
 
 		disposeDisposables();
+		vscode.window.showInformationMessage("If instructions don't appear, please restart Visual Studio Code.");
 		vscode.workspace.updateWorkspaceFolders(0, vscode.workspace.workspaceFolders?.length, { uri: writeDir });
 	});
 }

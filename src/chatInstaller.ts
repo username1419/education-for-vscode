@@ -280,7 +280,7 @@ function getOllamaModelData(model: string): ModelInfo[] {
             4 : Number.parseInt(quantization.split('_')[0]);
 
         // Get parameter size based on the model format above
-        const parameterSize = identifierParts[0]; // TODO: change this
+        const parameterSize = identifierParts[0]; // TODO: this does not work with certain model formats
         // Get the model size
         const size = modelInfo.size[index];
 
