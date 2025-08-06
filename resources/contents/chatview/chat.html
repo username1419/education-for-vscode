@@ -283,6 +283,9 @@
                     break;
                 }
                 case 'createModelOptions': {
+                    // Clear models options
+                    modelSelection.innerHTML = '<option selected disabled>Select Model</option>';
+
                     // Populate model selection dropdown with available models
                     const modelInfo = message.content;
                     if (modelInfo instanceof Array) {
