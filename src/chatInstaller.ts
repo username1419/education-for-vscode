@@ -148,6 +148,7 @@ export class ChatModelInstaller implements vscode.WebviewViewProvider {
                     warning += `You currently have ${currentRAM}GB of RAM in total.\n`;
                     warning += `\nThis model requires ${requiredVRAM}GB of VRAM to run.\n`;
                     warning += `It is recommended to have ${recommendedVRAM}GB of VRAM to run\n`;
+                    warning += `You currently have ${currentVRAM}GB of VRAM\n`;
                     if (requiredVRAM >= currentVRAM) {
                         warning += `You don't have enough VRAM to load the model to GPU memory. Running the model in this state may take a lot longer.\n`;
                     }
