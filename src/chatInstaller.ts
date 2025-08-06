@@ -239,9 +239,10 @@ function getOllamaModelData(model: string): ModelInfo[] {
     vscode.window.showInformationMessage("Fetching model parameters...");
 
     // Fetch the model tags from ollama.com and validate the response
-    const request = util.execute('curl.exe', ['-Ls', `https://ollama.com/library/${model}/tags`], { encoding: 'utf-8' });
+    const request = util.execute(process.platform === 'linux' ? 'curl' : 'curl.exe', ['-Ls', `https://ollama.com/library/${model}/tags`], { encoding: 'utf-8' });
     if (typeof request.stdout !== 'string') {
         util.logError('stdout wrong type');
+        vscode.window.showErrorMessage("Failed to retrieve model parameter size, please check your internet connection.");
         return [ModelInfo.null];
     }
 
