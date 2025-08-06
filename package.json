@@ -2,7 +2,11 @@
   "name": "education-for-vscode",
   "displayName": "Education for VSCode",
   "description": "na",
+  "publisher": "username1419",
   "version": "0.0.1",
+  "repository": {
+    "url": "https://github.com/username1419/education-for-vscode"
+  },
   "engines": {
     "vscode": "^1.100.0"
   },
