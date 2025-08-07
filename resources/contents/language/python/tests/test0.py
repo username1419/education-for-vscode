@@ -17,7 +17,7 @@ file_contents_type = ''
 
 with open('lesson0.py', 'r') as file:
     file_contents = file.read()
-    file_lines = file_contents.split('\n')
+    file_lines = file_contents.strip().split('\n')
     for line in file_lines: 
         try:
             value = ast.literal_eval(line)
@@ -43,7 +43,7 @@ if len(types) == 0:
         print('Failed. ')
 else:
     types_disp = ''
-    for type in types:
+    for type in types_default:
         if type is None:
             types_disp += "Value of type None, "
             continue

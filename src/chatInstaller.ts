@@ -148,6 +148,7 @@ export class ChatModelInstaller implements vscode.WebviewViewProvider {
                     warning += `You currently have ${currentRAM}GB of RAM in total.\n`;
                     warning += `\nThis model requires ${requiredVRAM}GB of VRAM to run.\n`;
                     warning += `It is recommended to have ${recommendedVRAM}GB of VRAM to run\n`;
+                    warning += `You currently have ${currentVRAM}GB of VRAM\n`;
                     if (requiredVRAM >= currentVRAM) {
                         warning += `You don't have enough VRAM to load the model to GPU memory. Running the model in this state may take a lot longer.\n`;
                     }
@@ -239,9 +240,10 @@ function getOllamaModelData(model: string): ModelInfo[] {
     vscode.window.showInformationMessage("Fetching model parameters...");
 
     // Fetch the model tags from ollama.com and validate the response
-    const request = util.execute('curl.exe', ['-Ls', `https://ollama.com/library/${model}/tags`], { encoding: 'utf-8' });
+    const request = util.execute(process.platform === 'linux' ? 'curl' : 'curl.exe', ['-Ls', `https://ollama.com/library/${model}/tags`], { encoding: 'utf-8' });
     if (typeof request.stdout !== 'string') {
         util.logError('stdout wrong type');
+        vscode.window.showErrorMessage("Failed to retrieve model parameter size, please check your internet connection.");
         return [ModelInfo.null];
     }
 
@@ -280,7 +282,7 @@ function getOllamaModelData(model: string): ModelInfo[] {
             4 : Number.parseInt(quantization.split('_')[0]);
 
         // Get parameter size based on the model format above
-        const parameterSize = identifierParts[0]; // TODO: change this
+        const parameterSize = identifierParts[0]; // TODO: this does not work with certain model formats
         // Get the model size
         const size = modelInfo.size[index];
 

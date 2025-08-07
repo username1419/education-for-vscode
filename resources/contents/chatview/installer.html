@@ -53,6 +53,12 @@
          * VS Code WebView API reference for message passing between extension and webview.
          */
         const vscode = acquireVsCodeApi();
+        // Get the model selection element
+        let modelSelection = document.getElementById('model-selection');
+        // Get the warnings container
+        const warning = document.getElementsByClassName('warning')[0];
+        // Get the parameters selection element
+        let paramsSelection = document.getElementById('params-selection');
 
         /**
          * Event listener for messages sent from the VS Code extension backend.
@@ -60,16 +66,11 @@
         window.addEventListener('message', event => {
             const message = event.data;
             console.log(message); // Log the received message for debugging
-
+            
             switch (message.command) {
                 case 'createModelOptions': {
-                    // Get the model selection element
-                    let modelSelection = document.getElementById('model-selection');
                     // Clear all options except placeholder
-                    modelSelection.childNodes.forEach((child, index) => {
-                        if (index === 1) { return; }
-                        modelSelection.removeChild(child);
-                    });
+                    modelSelection.innerHTML = "<option selected disabled>Model</option>";
 
                     // Validate the message content
                     if (!Array.isArray(message.content)) { return; }
@@ -84,13 +85,8 @@
                     break;
                 }
                 case 'createParamsOptions': {
-                    // Get the parameters selection element
-                    let paramsSelection = document.getElementById('params-selection');
                     // Clear all options except placeholder
-                    paramsSelection.childNodes.forEach((child, index) => {
-                        if (index === 1) { return; }
-                        paramsSelection.removeChild(child);
-                    });
+                    paramsSelection.innerHTML = '<option selected disabled>Size</option>';
 
                     // Validate the message content
                     if (!Array.isArray(message.content)) { return; }
@@ -107,10 +103,7 @@
                 case 'setWarningMessage': {
                     if (!(typeof message.content === "string")) { return; }
                     // Clear any existing warning messages
-                    const warning = document.getElementsByClassName('warning')[0];
-                    warning.childNodes.forEach((v, i) => {
-                        warning.removeChild(v);
-                    });
+                    warning.innerHTML = '';
 
                     // Add each line of the warning message as a paragraph element
                     // This is done to retain line breaks
@@ -136,7 +129,11 @@
             vscode.postMessage({
                 command: 'setParamsReq',
                 model: document.getElementById("model-selection").value
-            })
+            });
+            // Clear parameter size options
+            paramsSelection.innerHTML = '<option selected disabled>Size</option>';
+            // Remove warning messages
+            warning.innerHTML = '';
         }
 
         /**
