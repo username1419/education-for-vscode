@@ -1,8 +1,10 @@
 import { spawnSync, SpawnSyncOptionsWithStringEncoding, SpawnSyncReturns } from 'child_process';
 import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import * as chatInstaller from './chatInstaller';
 import * as chat from './chat';
+import { Queue } from 'queue-typescript';
 
 /**
  * Logger singleton to manage extension logging
@@ -93,42 +95,48 @@ export class Model {
  * It optionally searches from a specific path, otherwise it will attempt to resolve
  * the executable using the system's `PATH` variable or platform-specific commands.
  * 
- * This function will only search the folder with a depth of 2 (the folder itself and its subfolder)
+ * By default, the function will search within 2 depths of the starting directory.
  * 
  * @param name The application file name to search for
  * @param fromPath The path to start searching from. Falls back to searching system `PATH` variable.
+ * @param max_depth The maximum depth of the search. Set to a negative value to indicate unlimited recursive search.
  * @returns A {@link vscode.Uri} containing the path of the application binary
  */
-export function getApplicationPath(name: string, fromPath: vscode.Uri | undefined = undefined): vscode.Uri | undefined {
+export function getApplicationPath(name: string, fromPath: vscode.Uri | undefined = undefined, max_depth: number = 2): vscode.Uri | undefined {
 	/**
 	 * Search the specified directory for the application binary
 	 * 
 	 * @param startingDirectory The starting directory to search from
-	 * @param directoryContents The contents of the starting directory
+	 * @param max_depth The maximum depth the function will search in
 	 * @returns A {@link vscode.Uri} containing the path of the application binary or `undefined`
 	 */
-	function searchApplicationInDirectory(startingDirectory: vscode.Uri, directoryContents: fs.Dirent[]) {
+	function searchApplicationInDirectory(startingDirectory: vscode.Uri, max_depth: number) {
 		let out: vscode.Uri | undefined = undefined;
+		let visit: Queue<[string, number]> = new Queue([startingDirectory.fsPath, 0]);
 
 		// Iterate over each item in the directory
-		for (let i = 0, len = directoryContents.length; i < len; i++) {
-			const filePath = joinValidPath(startingDirectory, directoryContents[i].name);
-
-			// Some files are weird and can't be seen by the program
-			if (!fs.existsSync(filePath.fsPath)) { continue; }
+		while (visit.length > 0) {
+			const [file, depth] = visit.dequeue();
+			// If depth is at max, the file cannot be found within the specified depth
+			if (depth === max_depth) {
+				return undefined;
+			}
 			
 			// If the item is a file, check if it matches the target name
-			if (fs.statSync(filePath.fsPath).isFile()) {
-				const doesFileNameMatch = directoryContents[i].name === name || directoryContents[i].name === name + ".exe";
-				if (doesFileNameMatch) { return filePath; } // Return immediately if a match is found
+			if (fs.statSync(file).isFile()) {
+				const fileName = path.basename(file);
+				const doesFileNameMatch = fileName === name || fileName === name + ".exe";
+				if (doesFileNameMatch) { return file; } // Return immediately if a match is found
 				else { continue; }
 			}
 
-			// If it's a directory, read its contents and look for a matching file
-			const file = fs.readdirSync(filePath.fsPath, { withFileTypes: true }).find(v => v.name === name || v.name === name + ".exe")?.name;
-			out = file === undefined ? file : joinValidPath(filePath, file);
-			if (out !== undefined) { break; } // Stop searching if a match is found
+			// If it's a directory, read its contents and add them to the queue
+			for (let innerFile of fs.readdirSync(file)) {
+				visit.enqueue([innerFile, depth + 1]);
+			}
 		}
+		// If all files have been traversed, the file cannot be found
+		return undefined;
 	}
 
 	// If a starting directory is provided, attempt to manually find the executable there
@@ -140,9 +148,9 @@ export function getApplicationPath(name: string, fromPath: vscode.Uri | undefine
 		// Read the contents of the directory
 		const paths = fs.readdirSync(fromPath.fsPath, { withFileTypes: true });
 	
-		const result = searchApplicationInDirectory(fromPath, paths);
+		const result = searchApplicationInDirectory(fromPath, max_depth);
 		if (result) {
-			return result;
+			return vscode.Uri.file(result);
 		}
 		return; // No match found in the provided path
 	}
@@ -159,7 +167,7 @@ export function getApplicationPath(name: string, fromPath: vscode.Uri | undefine
 	}
 
 	// Fallback to search each directory in the PATH variable
-	let out: vscode.Uri | undefined = undefined;
+	let out: string | undefined = undefined;
 	const PATH: string | undefined = process.env.PATH;
 	if (!(typeof PATH === 'string')) { return; }
 	// Split the PATH variable into individual directories
@@ -173,11 +181,15 @@ export function getApplicationPath(name: string, fromPath: vscode.Uri | undefine
 		}
 
 		const subDirectories = fs.readdirSync(searchDirectory, {withFileTypes: true});
-		out = searchApplicationInDirectory(vscode.Uri.file(searchDirectory), subDirectories);
+		out = searchApplicationInDirectory(vscode.Uri.file(searchDirectory), max_depth);
 		if (out !== undefined) { break; }
 	}
 
-	return out;
+	if (!out) {
+		return undefined;
+	}
+
+	return vscode.Uri.file(out);
 }
 
 /**
