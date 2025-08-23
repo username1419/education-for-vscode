@@ -121,6 +121,11 @@ export function getApplicationPath(name: string, fromPath: vscode.Uri | undefine
 			if (depth === max_depth) {
 				return undefined;
 			}
+
+			// Some files cannot be seen by the program for some reason
+			if (!fs.existsSync(file)) {
+				continue;
+			}
 			
 			// If the item is a file, check if it matches the target name
 			if (fs.statSync(file).isFile()) {
