@@ -4,6 +4,8 @@ import * as fs from 'fs';
 import si from 'systeminformation';
 import * as cheerio from 'cheerio';
 
+const logger = util.Logger.getInstance();
+
 /**
  * Provider to create user interface to interact with ollama to download large language models. See {@link vscode.WebviewViewProvider}
  */
@@ -59,11 +61,11 @@ export class ChatModelInstaller implements vscode.WebviewViewProvider {
                 // webview requests an installation of the selected model
                 // Validate the message's contents
                 if (!(typeof message.model === 'string')) {
-                    util.logError(`wrong message model: expected 'string' type instead of ${typeof message.model}`);
+                    logger.logError(`wrong message model: expected 'string' type instead of ${typeof message.model}`);
                     return;
                 }
                 if (!(typeof message.params === 'string')) {
-                    util.logError(`wrong message params: expected 'string' instead of ${typeof message.params}`);
+                    logger.logError(`wrong message params: expected 'string' instead of ${typeof message.params}`);
                     return;
                 }
 
@@ -90,7 +92,7 @@ export class ChatModelInstaller implements vscode.WebviewViewProvider {
                 // webview requests a list of parameter sizes available to download for the selected model
                 // Validate the message's contents
                 if (!(typeof message.model === 'string')) {
-                    util.logError(`wrong message model: expected 'string' type instead of ${typeof message.model}`);
+                    logger.logError(`wrong message model: expected 'string' type instead of ${typeof message.model}`);
                     return;
                 }
 
@@ -107,7 +109,7 @@ export class ChatModelInstaller implements vscode.WebviewViewProvider {
                 // webview requests to check the model's parameter size against the specs of the user machine
                 // Validate the message's contents
                 if (!(typeof message.param === "string")) {
-                    util.logError(`wrong message param: expected 'string' instead got ${typeof message.param}`);
+                    logger.logError(`wrong message param: expected 'string' instead got ${typeof message.param}`);
                     return;
                 }
                 /**
@@ -164,7 +166,7 @@ export class ChatModelInstaller implements vscode.WebviewViewProvider {
             }
             default: {
                 // Log the command when it does not match the handled commands
-                util.logError(this.extensionContext.extension.id, `Command not recognized. Command: ${message.command}`);
+                logger.logError(`Command not recognized. Command: ${message.command}`);
                 break;
             }
         }
@@ -242,7 +244,7 @@ function getOllamaModelData(model: string): ModelInfo[] {
     // Fetch the model tags from ollama.com and validate the response
     const request = util.execute(process.platform === 'linux' ? 'curl' : 'curl.exe', ['-Ls', `https://ollama.com/library/${model}/tags`], { encoding: 'utf-8' });
     if (typeof request.stdout !== 'string') {
-        util.logError('stdout wrong type');
+        logger.logError('stdout wrong type');
         vscode.window.showErrorMessage("Failed to retrieve model parameter size, please check your internet connection.");
         return [ModelInfo.null];
     }

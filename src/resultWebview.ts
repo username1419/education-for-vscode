@@ -11,6 +11,8 @@ export enum ResultStatus {
     Error = "error"
 }
 
+const logger = util.Logger.getInstance();
+
 /**
  * Handles the results webview panel. Displays test result's status, outputs, expected outputs, errors, and handles proceeding callbacks.
  */
@@ -84,7 +86,7 @@ export class ResultWebView {
 
                 default: {
                     // Log an error if an unrecognized command is received
-                    util.logError(this.extensionContext.extension.id, `Command not recognized. Command: ${message.command}`);
+                    logger.logError(`Command not recognized. Command: ${message.command}`);
                     break;
                 }
             }

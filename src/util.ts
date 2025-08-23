@@ -5,30 +5,41 @@ import * as chatInstaller from './chatInstaller';
 import * as chat from './chat';
 
 /**
- * Logs the message to the console with yellow color
- * @param extensionName The extension to log as
- * @param msg The message to display
+ * Logger singleton to manage extension logging
  */
-export function logDebug(extensionName: string, msg?: any) {
-	console.log('\x1b[33m' + `(${extensionName}) DEBUG: `, msg, '\x1b[0m');
-}
+export class Logger {
+	/** Private singleton instance of the logger */
+	private static readonly _instance: Logger = new Logger("education-for-vscode");
+	/** Private constructor for the singleton */
+	private constructor(public readonly extensionName: string) { }
+	/** Get the instance of the logger */
+	public static getInstance() {
+		return this._instance;
+	}
 
-/**
- * Logs the message to the console with green color
- * @param extensionName The extension to log as
- * @param msg The message to display
-*/
-export function logInfo(extensionName: string, msg?: any) {
-	console.log('\x1b[32m' + `(${extensionName}) INFO: `, msg, '\x1b[0m');
-}
+	/**
+	 * Logs the message to the console with yellow color
+	 * @param msg The message to display
+	 */
+	logDebug(msg?: any) {
+		console.log('\x1b[33m' + `(${this.extensionName}) DEBUG: `, msg, '\x1b[0m');
+	}
 
-/**
- * Logs the message to the standard error
- * @param extensionName The extension to log as
- * @param msg The message to display
-*/
-export function logError(extensionName: string, msg?: any) {
-	console.error(`(${extensionName}) ERROR: `, msg);
+	/**
+	 * Logs the message to the console with green color
+	 * @param msg The message to display
+	*/
+	logInfo(msg?: any) {
+		console.log('\x1b[32m' + `(${this.extensionName}) INFO: `, msg, '\x1b[0m');
+	}
+
+	/**
+	 * Logs the message to the standard error
+	 * @param msg The message to display
+	*/
+	logError(msg?: any) {
+		console.error(`(${this.extensionName}) ERROR: `, msg);
+	}
 }
 
 /**

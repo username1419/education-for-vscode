@@ -26,6 +26,8 @@ Feedback:
 
 /** Name of the extension */
 const extensionName = "education-for-vscode";
+/** Logger for the extension */
+const logger = util.Logger.getInstance();
 /** Maps the programming language to the file extension of the source code */
 const fileExtension: Map<string, string> = new Map(
 	[
@@ -57,10 +59,10 @@ const registeredMiscDisposables: vscode.Disposable[] = [];
 export function activate(context: vscode.ExtensionContext) {
 
 	// Make sure the extension is correctly loaded
-	util.logDebug(extensionName, `Congratulations, your extension "${extensionName}" is now active!`);
-	util.logDebug(extensionName, `Extension globalState path: ${context.globalStorageUri.fsPath}`);
+	logger.logDebug(`Congratulations, your extension "${extensionName}" is now active!`);
+	logger.logDebug(`Extension globalState path: ${context.globalStorageUri.fsPath}`);
 	process.on("uncaughtException", err => {
-		util.logError(`Unhandled exception occured: 
+		logger.logError(`Unhandled exception occured: 
 			name: ${err.name}, 
 			message: ${err.message}, 
 			cause: ${err.cause}`);
@@ -68,7 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	process.on("unhandledRejection", (reason, promise) => {
-		util.logError(`Unhandled exception occured: 
+		logger.logError(`Unhandled exception occured: 
 			reason: ${reason}`);
 		vscode.window.showErrorMessage(`Education for VSCode: Error encountered: ${reason}`);
 	});
@@ -263,7 +265,7 @@ export function activate(context: vscode.ExtensionContext) {
 		// Proceed only if the language is set
 		let language = context.globalState.get(util.stateKeys.language, "");
 		if (language === "") {
-			util.logError(extensionName, "language is not definied");
+			logger.logError("language is not definied");
 			return;
 		}
 
@@ -381,7 +383,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Log the values in persistent storage used by the extension
 	for (let config in util.stateKeys) {
-		util.logDebug(extensionName, config + ", " + context.globalState.get(config));
+		logger.logDebug(config + ", " + context.globalState.get(config));
 	}
 
 	// Store the command registries so we can dispose of them later
@@ -486,7 +488,7 @@ function initializeVirtualEnv(language: string, writeDir: vscode.Uri): boolean {
 			vscode.window.showErrorMessage(`Creating Python Virtual Environment failed. Error: ${output.stderr}`);
 			return false;
 		}
-		util.logDebug(extensionName, output);
+		logger.logDebug(output);
 		return true;
 	}
 
@@ -668,7 +670,7 @@ function testSubmission(workspacePath: vscode.Uri) {
 	// Get the programming language of the lesson
 	let language = extensionContext.globalState.get(util.stateKeys.language, "");
 	if (!language) {
-		util.logError(extensionName, "globalState codeLanguage is undefined");
+		logger.logError("globalState codeLanguage is undefined");
 		return;
 	}
 
@@ -684,7 +686,7 @@ function testSubmission(workspacePath: vscode.Uri) {
 
 	// Check if the lesson number matches the one in the storage, if not, exit
 	if (lessonNumber !== extensionContext.globalState.get(util.stateKeys.currentLesson)) {
-		util.logError(extensionName, `lesson number and globalstate do not match. lesson number: ${lessonNumber}, global state ${extensionContext.globalState.get(util.stateKeys.currentLesson)}`);
+		logger.logError(`lesson number and globalstate do not match. lesson number: ${lessonNumber}, global state ${extensionContext.globalState.get(util.stateKeys.currentLesson)}`);
 		vscode.window.showErrorMessage("Lesson numbers do not match. Exiting...");
 
 		extensionContext.globalState.update(util.stateKeys.currentLesson, 0);
@@ -695,7 +697,7 @@ function testSubmission(workspacePath: vscode.Uri) {
 	// Get language folder path from storage
 	const languageReadFolderUri = langUri.find(uri => uri.fsPath.endsWith(language));
 	if (languageReadFolderUri === undefined) {
-		util.logError(`language folder ${language} does not exist`);
+		logger.logError(`language folder ${language} does not exist`);
 		return;
 	}
 
@@ -718,7 +720,7 @@ function testSubmission(workspacePath: vscode.Uri) {
 			encoding: 'utf-8'
 		}
 	);
-	util.logDebug(extensionName, output);
+	logger.logDebug(output);
 
 	// Evaluate the test output into a easy to understand result we can show the user
 	const result = evaluateResult(output, language);
@@ -823,7 +825,7 @@ function evaluateResult(testResult: SpawnSyncReturns<String>, codeLanguage: stri
 		// If the assertion error details cannot be found, a different error is causing the program to quit early
 		if (error === "") {
 			// In that case, we log the error and show the user what went wrong
-			util.logError(extensionName, `cannot find error, output: ${testResult}`);
+			logger.logError(`cannot find error, output: ${testResult}`);
 			return new Result(
 				ResultStatus.Error,
 				'',
@@ -876,7 +878,7 @@ function evaluateResult(testResult: SpawnSyncReturns<String>, codeLanguage: stri
  * Created to use before {@link vscode.workspace.updateWorkspaceFolders()} to not cause a memory leak
  */
 function disposeDisposables() {
-	util.logInfo(extensionName, "Cleaning up resources...");
+	logger.logInfo("Cleaning up resources...");
 	registeredCommands.forEach(command => {
 		command.dispose();
 	});
